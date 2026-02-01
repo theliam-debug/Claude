@@ -1,0 +1,53 @@
+{
+  "portfolio": {
+    "name": "Example Covered Call Portfolio",
+    "description": "Sample positions for derivatives_strategies v3",
+    "created": "2025-01-15T10:00:00Z"
+  },
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "quantity": 200,
+      "position_type": "stock",
+      "cost_basis": 170.00,
+      "open_date": "2024-06-15",
+      "notes": "Core holding - Apple Inc."
+    },
+    {
+      "symbol": "AAPL",
+      "quantity": -2,
+      "position_type": "call",
+      "strike": 180.00,
+      "expiry": "2025-02-21",
+      "cost_basis": 3.50,
+      "open_date": "2025-01-10",
+      "notes": "Covered call - Feb monthly"
+    },
+    {
+      "symbol": "MSFT",
+      "quantity": 100,
+      "position_type": "stock",
+      "cost_basis": 365.00,
+      "open_date": "2024-03-20",
+      "notes": "Core holding - Microsoft Corp."
+    },
+    {
+      "symbol": "MSFT",
+      "quantity": -1,
+      "position_type": "call",
+      "strike": 385.00,
+      "expiry": "2025-02-07",
+      "cost_basis": 4.20,
+      "open_date": "2025-01-08",
+      "notes": "Covered call - Feb weekly"
+    },
+    {
+      "symbol": "GOOGL",
+      "quantity": 100,
+      "position_type": "stock",
+      "cost_basis": 140.00,
+      "open_date": "2024-09-10",
+      "notes": "Core holding - Alphabet Inc. (no covered call yet)"
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+# Derivatives Strategies v3 - Example Policy Configuration
+#
+# This policy defines the rules and constraints for covered call strategies.
+# All gates are evaluated for each recommendation.
+
+name: "covered_call_conservative"
+version: "1.0"
+description: "Conservative covered call policy with dividend protection"
+
+# Default strategy parameters
+defaults:
+  dte_min: 7          # Minimum days to expiry
+  dte_max: 45         # Maximum days to expiry
+  delta_min: 0.15     # Minimum delta (farther OTM)
+  delta_max: 0.35     # Maximum delta (closer to ATM)
+
+# Transaction cost assumptions
+costs:
+  commission: 0.65              # Per contract
+  price_improvement: 0.10       # 10% of spread improvement when selling
+
+# Position limits
+limits:
+  concentration: 0.10           # Max 10% of portfolio in single position
+  margin_utilization: 0.80      # Max 80% margin usage
+
+# Strategy preferences
+strategy:
+  prefer_roll_credit: true      # Prefer rolls that generate credit
+  allow_roll_debit: false       # Don't allow debit rolls
+  max_roll_debit: 0.50          # Max debit if allowed
+
+# Gate configurations
+gates:
+  liquidity:
+    max_spread_pct: 0.20        # Max 20% bid-ask spread
+    min_open_interest: 100      # Minimum open interest
+    min_volume: 10              # Minimum daily volume
+    hard: true                  # Blocks trades if violated
+
+  events:
+    blackout_days_before: 2     # Days before event to block trading
+    blackout_days_after: 1      # Days after event to block trading
+    hard: true
+
+  dividend:
+    days_before_ex: 5           # Days before ex-date to check
+    min_extrinsic_ratio: 1.5    # Extrinsic must be 1.5x dividend PV
+    hard: true
+
+  margin:
+    min_buffer: 0.20            # Maintain 20% margin buffer
+    max_utilization: 0.80       # Max 80% margin utilization
+    hard: true
+
+  roll_credit:
+    min_credit: 0.0             # Minimum net credit
+    allow_debit: false          # No debit rolls
+    max_debit: 0.0              # N/A since debit not allowed
+    hard: true
+
+  concentration:
+    max_pct: 0.10               # Max 10% of portfolio
+    hard: true
+
+  dte:
+    min: 7                      # At least 7 days to expiry
+    max: 45                     # No more than 45 days
+    hard: false                 # Warning only
+
+  delta:
+    min: 0.15                   # Minimum delta
+    max: 0.35                   # Maximum delta
+    hard: false                 # Warning only
+
+# Event calendar (earnings, FOMC, etc.)
+# Format: date -> list of events
+event_calendar:
+  "2025-01-28":
+    - "AAPL Earnings"
+  "2025-01-29":
+    - "FOMC Decision"
+  "2025-02-04":
+    - "MSFT Earnings"
+
+# Active overrides (temporary exceptions)
+overrides: []
+  # Example override format:
+  # - gate: LiquidityGate
+  #   reason: "LOW_LIQUIDITY_APPROVED"
+  #   authorized_by: "risk_manager"
+  #   timestamp: "2025-01-15T10:00:00Z"
+  #   expires: "2025-01-20T00:00:00Z"
