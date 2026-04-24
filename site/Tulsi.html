@@ -237,11 +237,50 @@
     pointer-events:none;
     z-index:1;
     opacity:0.85;
+    transform-origin: 50% 95%;
+    animation: sway 9s ease-in-out infinite;
   }
-  .hero-leaf--tl{ top:-40px; left:-60px; width:380px; transform:rotate(-25deg)}
-  .hero-leaf--tr{ top:40px; right:-80px; width:320px; transform:rotate(40deg)}
-  .hero-leaf--bl{ bottom:-60px; left:-40px; width:300px; transform:rotate(200deg); opacity:0.5}
-  .hero-leaf--br{ bottom:-20px; right:-40px; width:260px; transform:rotate(-150deg); opacity:0.6}
+  .hero-leaf--tl{ top:-40px; left:-60px; width:380px; --r:-25deg; animation-delay:-1.2s}
+  .hero-leaf--tr{ top:40px; right:-80px; width:320px; --r:40deg; animation-delay:-3.1s}
+  .hero-leaf--bl{ bottom:-60px; left:-40px; width:300px; --r:200deg; opacity:0.5; animation-delay:-5s}
+  .hero-leaf--br{ bottom:-20px; right:-40px; width:260px; --r:-150deg; opacity:0.6; animation-delay:-7s}
+  @keyframes sway{
+    0%,100%{ transform: rotate(var(--r, 0deg)) translateY(0) }
+    50%    { transform: rotate(calc(var(--r, 0deg) + 3deg)) translateY(-4px) }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .hero-leaf{ animation: none; transform: rotate(var(--r, 0deg)) }
+  }
+
+  .hero-flower{
+    position:absolute;
+    left:50%;
+    top:8%;
+    transform:translateX(-50%);
+    width:68px;
+    color:var(--clay-600);
+    opacity:0.55;
+    z-index:1;
+    pointer-events:none;
+  }
+  @media (max-width:720px){ .hero-flower{display:none} }
+
+  .plant-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 14px 6px 10px;
+    border-radius:999px;
+    background:color-mix(in oklab, var(--leaf-500) 18%, transparent);
+    border:1px solid color-mix(in oklab, var(--leaf-700) 30%, transparent);
+    font-size:11px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    font-weight:600;
+    color:var(--leaf-800);
+    margin-top:26px;
+  }
+  .plant-badge svg{ width:14px; height:14px; color:var(--leaf-700) }
 
   .hero-meta{
     position:absolute;
@@ -301,35 +340,41 @@
     border-radius: 4px;
     overflow:hidden;
     background:
-      repeating-linear-gradient(
-        135deg,
-        var(--leaf-700) 0 2px,
-        var(--leaf-800) 2px 14px
-      );
+      radial-gradient(ellipse at 50% 70%, color-mix(in oklab, var(--leaf-700) 85%, transparent) 0%, var(--leaf-900) 75%);
     color:var(--leaf-100);
+    display:grid;
+    place-items:center;
+    border:1px solid color-mix(in oklab, var(--leaf-700) 50%, transparent);
+  }
+  .story-image .plant{
+    width:62%;
+    color:var(--leaf-300);
+    filter: drop-shadow(0 6px 24px color-mix(in oklab, var(--leaf-900) 60%, transparent));
   }
   .story-image .ph{
     position:absolute;
-    inset:0;
-    display:grid;
-    place-items:center;
+    bottom:18px; left:20px; right:20px;
+    display:flex;
+    justify-content:space-between;
     font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:12px;
-    letter-spacing:0.15em;
-    color:color-mix(in oklab, var(--leaf-100) 75%, transparent);
+    font-size:10px;
+    letter-spacing:0.22em;
+    color:color-mix(in oklab, var(--leaf-100) 60%, transparent);
     text-transform:uppercase;
-  }
-  .story-image .ph span{
-    background:color-mix(in oklab, var(--leaf-900) 70%, transparent);
-    padding:8px 14px;
-    border-radius:2px;
   }
   .story-image .frame-leaf{
     position:absolute;
     top:20px; right:20px;
-    width:70px;
-    color:var(--leaf-100);
+    width:60px;
+    color:var(--leaf-300);
     opacity:0.8;
+  }
+  .story-image .frame-leaf--2{
+    position:absolute;
+    bottom:20px; left:20px; top:auto; right:auto;
+    width:48px;
+    transform:rotate(180deg);
+    opacity:0.55;
   }
   .story-text h2{
     color:var(--leaf-900);
@@ -402,6 +447,18 @@
     margin-bottom:50px;
     border-bottom:1px solid color-mix(in oklab, var(--leaf-100) 15%, transparent);
     padding-bottom:0;
+    position:relative;
+  }
+  @media (max-width: 720px){
+    .menu-tabs{
+      flex-wrap:nowrap;
+      overflow-x:auto;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling: touch;
+      mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    }
+    .menu-tabs::-webkit-scrollbar{ display:none }
+    .menu-tab{ flex:0 0 auto }
   }
   .menu-tab{
     appearance:none;
@@ -487,7 +544,10 @@
     font-weight:600;
     vertical-align:middle;
   }
-  .tag--veg{ color:var(--leaf-300); border:1px solid var(--leaf-500)}
+  .tag--veg{ color:var(--leaf-300); border:1px solid var(--leaf-500); padding-left:4px}
+  .tag--veg svg{ width:10px; height:10px; color:var(--leaf-300) }
+  .tag--vegan{ color:var(--leaf-100); border:1px solid var(--leaf-300); padding-left:4px}
+  .tag--vegan svg{ width:10px; height:10px; color:var(--leaf-100) }
   .tag--spicy{ color:var(--clay-300); border:1px solid var(--clay-500)}
   .tag--chef{ color:var(--cream); border:1px solid var(--cream); background:color-mix(in oklab, var(--cream) 10%, transparent)}
 
@@ -524,12 +584,37 @@
     pointer-events:none;
   }
 
+  /* ---------- Vine divider ---------- */
+  .vine-divider{
+    display:block;
+    width:100%;
+    height:34px;
+    color:var(--leaf-700);
+    opacity:0.55;
+  }
+  .vine-divider--cream{ color:var(--leaf-500); opacity:0.6 }
+  .vine-divider--dark{ color:var(--leaf-600); opacity:0.5 }
+  .vine-wrap{ max-width:var(--maxw); margin:0 auto; padding:0 28px }
+
   /* ---------- Philosophy / Tulsi plant ---------- */
   .philosophy{
-    background:var(--cream);
+    background:
+      radial-gradient(ellipse at 15% 10%, color-mix(in oklab, var(--leaf-100) 55%, transparent) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 85%, color-mix(in oklab, var(--leaf-100) 40%, transparent) 0%, transparent 55%),
+      var(--cream);
     position:relative;
     overflow:hidden;
   }
+  .philosophy::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='%232a4a35' fill-opacity='0.05'><path d='M20 30 C 10 36, 6 48, 8 62 C 22 60, 32 50, 34 34 C 28 32, 24 31, 20 30 Z'/><path d='M90 70 C 80 76, 76 88, 78 102 C 92 100, 102 90, 104 74 C 98 72, 94 71, 90 70 Z'/></g></svg>");
+    background-size: 180px 180px;
+    opacity:0.9;
+    pointer-events:none;
+  }
+  .philosophy .wrap{ position:relative; z-index:1 }
   .pillars{
     display:grid;
     grid-template-columns:repeat(3, 1fr);
@@ -672,9 +757,10 @@
     color:var(--leaf-800);
   }
   .marquee .dot{
-    width:10px; height:10px; border-radius:50%;
-    background:var(--clay-600); display:inline-block;
+    width:18px; height:18px; display:inline-block;
+    color:var(--clay-600);
     flex-shrink:0;
+    transform: translateY(2px);
   }
   .marquee span{flex-shrink:0}
   @keyframes marquee{
@@ -853,6 +939,71 @@
             fill="currentColor"/>
       <path d="M10 34 Q 20 22, 32 10" stroke="var(--cream,#f4ecd8)" stroke-width="1" fill="none" opacity="0.4"/>
     </symbol>
+
+    <!-- Tulsi flower spike (manjari): stalk with whorls of tiny blossoms -->
+    <symbol id="tulsi-flower" viewBox="0 0 60 200">
+      <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <path d="M30 196 L30 20"/>
+        <g fill="currentColor" stroke="none">
+          <circle cx="30" cy="24" r="2.2"/>
+          <circle cx="24" cy="30" r="1.8"/><circle cx="36" cy="30" r="1.8"/>
+          <circle cx="30" cy="44" r="2"/>
+          <circle cx="22" cy="50" r="1.7"/><circle cx="38" cy="50" r="1.7"/>
+          <circle cx="30" cy="64" r="2"/>
+          <circle cx="24" cy="70" r="1.6"/><circle cx="36" cy="70" r="1.6"/>
+          <circle cx="30" cy="84" r="1.8"/>
+          <circle cx="26" cy="90" r="1.5"/><circle cx="34" cy="90" r="1.5"/>
+          <circle cx="30" cy="104" r="1.6"/>
+        </g>
+        <path d="M30 130 C 14 128, 6 118, 4 104 C 18 106, 28 116, 30 130 Z" fill="currentColor" stroke="none" opacity="0.85"/>
+        <path d="M30 130 C 46 128, 54 118, 56 104 C 42 106, 32 116, 30 130 Z" fill="currentColor" stroke="none" opacity="0.85"/>
+        <path d="M30 168 C 16 166, 10 156, 8 144 C 20 146, 28 154, 30 168 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+        <path d="M30 168 C 44 166, 50 156, 52 144 C 40 146, 32 154, 30 168 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+      </g>
+    </symbol>
+
+    <!-- Potted tulsi plant -->
+    <symbol id="tulsi-pot" viewBox="0 0 140 180">
+      <g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+        <path d="M70 120 L70 40"/>
+        <path d="M70 100 C 55 85, 45 65, 42 45"/>
+        <path d="M70 100 C 85 85, 95 65, 98 45"/>
+        <g fill="currentColor" stroke="none" opacity="0.9">
+          <path d="M70 42 C 58 38, 50 26, 50 12 C 62 16, 70 26, 70 42 Z"/>
+          <path d="M70 42 C 82 38, 90 26, 90 12 C 78 16, 70 26, 70 42 Z"/>
+          <path d="M42 46 C 32 44, 24 34, 22 22 C 32 24, 40 32, 42 46 Z"/>
+          <path d="M98 46 C 108 44, 116 34, 118 22 C 108 24, 100 32, 98 46 Z"/>
+          <path d="M70 80 C 60 76, 54 66, 54 54 C 64 58, 70 66, 70 80 Z"/>
+          <path d="M70 80 C 80 76, 86 66, 86 54 C 76 58, 70 66, 70 80 Z"/>
+        </g>
+        <path d="M38 120 L46 172 L94 172 L102 120 Z" fill="currentColor" opacity="0.18" stroke="currentColor"/>
+        <path d="M34 120 L106 120" stroke-width="1.6"/>
+        <path d="M38 132 L102 132" opacity="0.5"/>
+      </g>
+    </symbol>
+
+    <!-- Horizontal vine divider: running leaves on a stem -->
+    <symbol id="vine" viewBox="0 0 600 40" preserveAspectRatio="none">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1">
+        <path d="M0 20 Q 75 4, 150 20 T 300 20 T 450 20 T 600 20" opacity="0.6"/>
+        <g fill="currentColor" stroke="none" opacity="0.85">
+          <path d="M75 12 C 68 8, 64 2, 64 -4 C 72 -2, 76 4, 78 12 Z"/>
+          <path d="M225 12 C 218 8, 214 2, 214 -4 C 222 -2, 226 4, 228 12 Z"/>
+          <path d="M375 28 C 368 32, 364 38, 364 44 C 372 42, 376 36, 378 28 Z"/>
+          <path d="M525 28 C 518 32, 514 38, 514 44 C 522 42, 526 36, 528 28 Z"/>
+          <path d="M150 28 C 143 32, 139 38, 139 44 C 147 42, 151 36, 153 28 Z"/>
+          <path d="M300 12 C 293 8, 289 2, 289 -4 C 297 -2, 301 4, 303 12 Z"/>
+          <path d="M450 12 C 443 8, 439 2, 439 -4 C 447 -2, 451 4, 453 12 Z"/>
+        </g>
+      </g>
+    </symbol>
+
+    <!-- Mini leaf for inline use (V tag, etc.) -->
+    <symbol id="leaf-mini" viewBox="0 0 14 14">
+      <path d="M7 1 C 3 4, 2 8, 3 13 C 8 12, 12 8, 13 2 C 10 1.2, 8 1, 7 1 Z"
+            fill="currentColor"/>
+      <path d="M4 12 Q 8 8, 12 3" stroke="var(--cream,#f4ecd8)" stroke-width="0.7" fill="none" opacity="0.5"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -899,30 +1050,34 @@
   <svg class="hero-leaf hero-leaf--tr" viewBox="0 0 200 320" style="color:var(--leaf-700)"><use href="#tulsi-leaf"/></svg>
   <svg class="hero-leaf hero-leaf--bl" viewBox="0 0 200 320" style="color:var(--leaf-500)"><use href="#tulsi-leaf"/></svg>
   <svg class="hero-leaf hero-leaf--br" viewBox="0 0 200 320" style="color:var(--leaf-600)"><use href="#tulsi-leaf"/></svg>
+  <svg class="hero-flower" viewBox="0 0 60 200" aria-hidden="true"><use href="#tulsi-flower"/></svg>
 
   <div class="hero-content">
     <div class="hero-eyebrow">
       <span class="line"></span>
-      <span class="eyebrow">Modern Indian · Windsor, CT</span>
+      <span class="eyebrow">Authentic Indian · Windsor, CT</span>
       <span class="line"></span>
     </div>
     <h1>
-      Rooted in<br>
-      <em>holy basil</em>,<br>
-      grown in <span class="amp">flavor.</span>
+      Rooted in <em>purity</em>,<br>
+      wellness, <span class="amp">&amp;</span> flavor.
     </h1>
     <p class="hero-sub">
-      A lighter, greener take on Indian cuisine — where smoky tandoor,
-      slow-simmered curries, and bright vegetarian plates meet a warm,
+      Named for the holy basil plant — Tulsi is a plant-forward Indian kitchen
+      where hand-ground spice, smoky tandoor, and garden-led mains meet a warm,
       modern table.
     </p>
     <div class="hero-cta">
       <a href="#reserve" class="btn btn--clay">Reserve a table</a>
       <a href="#menu" class="btn btn--ghost">View the menu →</a>
     </div>
+    <span class="plant-badge" aria-label="Plant-forward menu">
+      <svg viewBox="0 0 14 14" aria-hidden="true"><use href="#leaf-mini"/></svg>
+      Over half the menu is plant-based
+    </span>
   </div>
   <div class="hero-meta">
-    <span>Est. 2026 · 216 Broad St</span>
+    <span>216 Broad Street · Windsor, CT</span>
     <span>तुलसी — Ocimum Sanctum</span>
   </div>
 </section>
@@ -930,45 +1085,54 @@
 <!-- ============ MARQUEE ============ -->
 <section class="signature" aria-hidden="true">
   <div class="marquee" id="marquee">
-    <span>Smoky Tandoor</span><span class="dot"></span>
-    <span>Seasonal Vegetables</span><span class="dot"></span>
-    <span>Hand-Ground Spice</span><span class="dot"></span>
-    <span>Regional India</span><span class="dot"></span>
-    <span>Craft Cocktails</span><span class="dot"></span>
-    <span>Smoky Tandoor</span><span class="dot"></span>
-    <span>Seasonal Vegetables</span><span class="dot"></span>
-    <span>Hand-Ground Spice</span><span class="dot"></span>
-    <span>Regional India</span><span class="dot"></span>
-    <span>Craft Cocktails</span><span class="dot"></span>
+    <span>Smoky Tandoor</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Garden-Led Plates</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Hand-Ground Spice</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Regional India</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Holy Basil</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Smoky Tandoor</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Garden-Led Plates</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Hand-Ground Spice</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Regional India</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
+    <span>Holy Basil</span><svg class="dot" viewBox="0 0 40 40"><use href="#leaf-mark"/></svg>
   </div>
 </section>
 
 <!-- ============ STORY ============ -->
 <section class="story section-pad" id="story">
   <svg class="story-bg-leaf" viewBox="0 0 200 320"><use href="#tulsi-leaf"/></svg>
+  <div class="vine-wrap" aria-hidden="true" style="margin-top:-60px;margin-bottom:60px">
+    <svg class="vine-divider" viewBox="0 0 600 40" preserveAspectRatio="none"><use href="#vine"/></svg>
+  </div>
   <div class="wrap">
     <div class="story-grid">
-      <div class="story-image">
+      <div class="story-image" role="img" aria-label="Potted holy basil plant">
         <svg class="frame-leaf" viewBox="0 0 100 100"><use href="#tulsi-sprig"/></svg>
-        <div class="ph"><span>Chef portrait / Dining room</span></div>
+        <svg class="plant" viewBox="0 0 140 180"><use href="#tulsi-pot"/></svg>
+        <svg class="frame-leaf frame-leaf--2" viewBox="0 0 100 100"><use href="#tulsi-sprig"/></svg>
+        <div class="ph">
+          <span>Ocimum Sanctum</span>
+          <span>तुलसी</span>
+        </div>
       </div>
       <div class="story-text">
         <span class="eyebrow">Our Story</span>
-        <h2>Named for the<br>sacred basil.</h2>
+        <h2>Like our namesake,<br>the holy basil.</h2>
         <p>
           In Indian households, a tulsi plant stands near every doorway —
-          a quiet emblem of purity, wellness, and welcome. We took the
-          name because we believe food should do the same things: nourish,
-          gather, and feel like home.
+          the revered holy basil, a quiet emblem of purity, wellness,
+          and welcome. We took the name because food should do the same
+          things: nourish, gather, and feel like home.
         </p>
         <p>
           Our kitchen draws from every region of India, from Kashmiri
-          slow-cooked lamb to the coconut-warm curries of Kerala. Every
-          dish is made from scratch — spices hand-ground the morning of,
-          breads pulled from the tandoor to order.
+          slow-cooked lamb to the coconut-warm curries of Kerala. Spices
+          are hand-ground the morning of service, breads pulled from the
+          tandoor to order, and every curry starts — as they have for
+          centuries — with onion and oil.
         </p>
         <blockquote class="story-quote">
-          "Purity of ingredient, honesty of flame, generosity of table."
+          "Rooted in purity, wellness, and flavor."
           <span class="devanagari">— The Tulsi Kitchen</span>
         </blockquote>
       </div>
@@ -980,6 +1144,7 @@
 <section class="menu section-pad" id="menu">
   <svg class="menu-bg-leaf" viewBox="0 0 200 320"><use href="#tulsi-leaf"/></svg>
   <svg class="menu-bg-leaf-2" viewBox="0 0 200 320"><use href="#tulsi-leaf"/></svg>
+  <svg aria-hidden="true" viewBox="0 0 60 200" style="position:absolute;top:8%;right:8%;width:56px;color:var(--clay-500);opacity:0.35;pointer-events:none"><use href="#tulsi-flower"/></svg>
   <div class="wrap">
     <div class="section-head">
       <div class="title">
@@ -993,58 +1158,63 @@
       </p>
     </div>
 
-    <nav class="menu-tabs" role="tablist" aria-label="Menu sections">
-      <button class="menu-tab is-active" role="tab" aria-selected="true" data-tab="small"><span class="dot"></span>Small Plates</button>
-      <button class="menu-tab" role="tab" data-tab="tandoor"><span class="dot"></span>From the Tandoor</button>
-      <button class="menu-tab" role="tab" data-tab="curry"><span class="dot"></span>Curries &amp; Mains</button>
-      <button class="menu-tab" role="tab" data-tab="garden"><span class="dot"></span>The Garden</button>
-      <button class="menu-tab" role="tab" data-tab="bread"><span class="dot"></span>Bread &amp; Rice</button>
-      <button class="menu-tab" role="tab" data-tab="bar"><span class="dot"></span>Bar</button>
+    <nav class="menu-tabs" role="tablist" aria-label="Menu sections" id="menuTabs">
+      <button class="menu-tab is-active" role="tab" aria-selected="true" aria-controls="panel-small"   id="tab-small"   data-tab="small"   tabindex="0"><span class="dot"></span>Small Plates</button>
+      <button class="menu-tab" role="tab" aria-selected="false" aria-controls="panel-tandoor" id="tab-tandoor" data-tab="tandoor" tabindex="-1"><span class="dot"></span>From the Tandoor</button>
+      <button class="menu-tab" role="tab" aria-selected="false" aria-controls="panel-curry"   id="tab-curry"   data-tab="curry"   tabindex="-1"><span class="dot"></span>Curries &amp; Mains</button>
+      <button class="menu-tab" role="tab" aria-selected="false" aria-controls="panel-garden"  id="tab-garden"  data-tab="garden"  tabindex="-1"><span class="dot"></span>The Garden</button>
+      <button class="menu-tab" role="tab" aria-selected="false" aria-controls="panel-bread"   id="tab-bread"   data-tab="bread"   tabindex="-1"><span class="dot"></span>Bread &amp; Rice</button>
+      <button class="menu-tab" role="tab" aria-selected="false" aria-controls="panel-bar"     id="tab-bar"     data-tab="bar"     tabindex="-1"><span class="dot"></span>Bar</button>
     </nav>
 
     <!-- SMALL PLATES -->
-    <div class="menu-panel is-active" data-panel="small">
+    <div class="menu-panel is-active" role="tabpanel" id="panel-small" aria-labelledby="tab-small" data-panel="small">
       <div class="menu-grid">
         <div class="dish">
-          <h3 class="dish-name">Tulsi Papri Chaat <span class="tag tag--veg">V</span></h3>
+          <h3 class="dish-name">Vegetable Pakora <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">9</span>
+          <p class="dish-desc">Chickpea-battered garden vegetables, fried crisp, served with tamarind and mint chutneys.</p>
+        </div>
+        <div class="dish">
+          <h3 class="dish-name">Paneer Pakora <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3>
+          <span class="dish-price">11</span>
+          <p class="dish-desc">House paneer in spiced gram-flour batter, ajwain, green chutney.</p>
+        </div>
+        <div class="dish">
+          <h3 class="dish-name">Samosa (2) <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">8</span>
+          <p class="dish-desc">Flaky pastry, spiced potato &amp; pea, cumin-roasted, tamarind date chutney.</p>
+        </div>
+        <div class="dish">
+          <h3 class="dish-name">Coal-Fired Chicken Wings <span class="tag tag--chef">House</span></h3>
+          <span class="dish-price">14</span>
+          <p class="dish-desc">Tandoor-charred wings, yogurt-ginger marinade, curry-leaf butter, lime.</p>
+        </div>
+        <div class="dish">
+          <h3 class="dish-name">Tulsi Papri Chaat <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3>
           <span class="dish-price">12</span>
           <p class="dish-desc">Crisp flour wafers, chickpeas, yogurt, tamarind &amp; mint, fresh pomegranate, micro holy basil.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Avocado Bhel <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">13</span>
-          <p class="dish-desc">Puffed rice, green mango, crushed avocado, cilantro, lime, sev.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Kerala Calamari</h3>
-          <span class="dish-price">16</span>
-          <p class="dish-desc">Semolina-dusted squid, curry leaf, coconut chili jam.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Dahi Ke Kebab <span class="tag tag--chef">Chef's pick</span></h3>
-          <span class="dish-price">14</span>
-          <p class="dish-desc">Hung-yogurt dumplings with saffron, pistachio, crisp shallot.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Kashmiri Lamb Seekh <span class="tag tag--spicy">Spicy</span></h3>
-          <span class="dish-price">17</span>
-          <p class="dish-desc">Ground lamb, black cardamom, Kashmiri chili, mint-yogurt.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Corn &amp; Paneer Tikki <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">12</span>
-          <p class="dish-desc">Sweet corn, paneer, green chili, tamarind drizzle.</p>
+          <h3 class="dish-name">Aloo Tikki Chaat <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">10</span>
+          <p class="dish-desc">Griddled potato cakes, chickpea masala, cilantro, onion, pomegranate.</p>
         </div>
       </div>
     </div>
 
     <!-- TANDOOR -->
-    <div class="menu-panel" data-panel="tandoor">
+    <div class="menu-panel" role="tabpanel" id="panel-tandoor" aria-labelledby="tab-tandoor" data-panel="tandoor">
       <div class="menu-grid">
+        <div class="dish">
+          <h3 class="dish-name">Chicken Tikka</h3>
+          <span class="dish-price">22</span>
+          <p class="dish-desc">Boneless thigh, yogurt &amp; ginger marinade, coal-fired to a char, served with mint chutney.</p>
+        </div>
         <div class="dish">
           <h3 class="dish-name">Murgh Malai Tikka</h3>
           <span class="dish-price">24</span>
-          <p class="dish-desc">Chicken, cream, cheese, green cardamom, white pepper.</p>
+          <p class="dish-desc">Chicken, cream, cheese, green cardamom, white pepper — gentle, rich, tandoor-smoked.</p>
         </div>
         <div class="dish">
           <h3 class="dish-name">Tandoori Jhinga <span class="tag tag--spicy">Spicy</span></h3>
@@ -1052,7 +1222,7 @@
           <p class="dish-desc">Jumbo prawns, ajwain, Kashmiri chili, lemon.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Hariyali Paneer <span class="tag tag--veg">V</span> <span class="tag tag--chef">Chef's pick</span></h3>
+          <h3 class="dish-name">Hariyali Paneer <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span> <span class="tag tag--chef">Signature</span></h3>
           <span class="dish-price">22</span>
           <p class="dish-desc">House paneer, cilantro, mint, holy basil, green chili — our namesake on a skewer.</p>
         </div>
@@ -1062,104 +1232,99 @@
           <p class="dish-desc">Frenched chops, yogurt &amp; garam masala marinade, charred to medium-rare.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Tandoori Mushroom <span class="tag tag--veg">V</span></h3>
+          <h3 class="dish-name">Tandoori Mushroom <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
           <span class="dish-price">19</span>
-          <p class="dish-desc">King oyster &amp; shiitake, smoked yogurt, curry leaf oil.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Reshmi Tikka</h3>
-          <span class="dish-price">23</span>
-          <p class="dish-desc">Chicken thigh, cashew cream, saffron, rose petal.</p>
+          <p class="dish-desc">King oyster &amp; shiitake, smoked cashew cream, curry-leaf oil.</p>
         </div>
       </div>
     </div>
 
     <!-- CURRY -->
-    <div class="menu-panel" data-panel="curry">
+    <div class="menu-panel" role="tabpanel" id="panel-curry" aria-labelledby="tab-curry" data-panel="curry">
       <div class="menu-grid">
         <div class="dish">
-          <h3 class="dish-name">Classic Tikka Masala <span class="tag tag--chef">Signature</span></h3>
+          <h3 class="dish-name">Chicken Tikka Masala <span class="tag tag--chef">Signature</span></h3>
           <span class="dish-price">24</span>
           <p class="dish-desc">Slow-simmered tomato &amp; cream, fenugreek, charcoal-kissed chicken.</p>
         </div>
         <div class="dish">
+          <h3 class="dish-name">Butter Chicken</h3>
+          <span class="dish-price">23</span>
+          <p class="dish-desc">Tomato-honey gravy, fenugreek, cold butter mounted at the pass.</p>
+        </div>
+        <div class="dish">
           <h3 class="dish-name">Goan Fish Curry <span class="tag tag--spicy">Spicy</span></h3>
-          <span class="dish-price">28</span>
+          <span class="dish-price">26</span>
           <p class="dish-desc">Coconut, tamarind, Byadgi chili, day-boat catch.</p>
         </div>
         <div class="dish">
           <h3 class="dish-name">Lamb Rogan Josh</h3>
-          <span class="dish-price">29</span>
+          <span class="dish-price">27</span>
           <p class="dish-desc">Kashmiri lamb shoulder, fennel, ginger, rogan oil.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Butter Chicken</h3>
-          <span class="dish-price">25</span>
-          <p class="dish-desc">Tomato-honey gravy, fenugreek, cold butter mounted at pass.</p>
-        </div>
-        <div class="dish">
-          <h3 class="dish-name">Hyderabadi Biryani</h3>
-          <span class="dish-price">26</span>
-          <p class="dish-desc">Long-grain basmati, saffron, your choice of chicken, lamb, or vegetable.</p>
+          <h3 class="dish-name">Chicken Biryani</h3>
+          <span class="dish-price">22</span>
+          <p class="dish-desc">Long-grain basmati, saffron, sealed and steamed dum-style.  Lamb +5 · Vegetable -2.</p>
         </div>
         <div class="dish">
           <h3 class="dish-name">Chettinad Chicken <span class="tag tag--spicy">Spicy</span></h3>
-          <span class="dish-price">24</span>
+          <span class="dish-price">23</span>
           <p class="dish-desc">Black pepper, fennel, star anise, curry leaf.</p>
         </div>
       </div>
     </div>
 
     <!-- GARDEN (VEG) -->
-    <div class="menu-panel" data-panel="garden">
+    <div class="menu-panel" role="tabpanel" id="panel-garden" aria-labelledby="tab-garden" data-panel="garden">
       <div class="menu-grid">
         <div class="dish">
-          <h3 class="dish-name">Tulsi Tadka Dal <span class="tag tag--veg">V</span> <span class="tag tag--chef">House</span></h3>
-          <span class="dish-price">18</span>
+          <h3 class="dish-name">Dal Makhani <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span> <span class="tag tag--chef">House</span></h3>
+          <span class="dish-price">17</span>
           <p class="dish-desc">Black lentil &amp; kidney bean, 24-hour simmer, finished with tulsi-ghee tadka.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Palak Paneer <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">19</span>
+          <h3 class="dish-name">Palak Paneer <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3>
+          <span class="dish-price">18</span>
           <p class="dish-desc">Spinach, mustard greens, garlic, house paneer.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Baingan Bharta <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">18</span>
-          <p class="dish-desc">Fire-roasted eggplant, tomato, green pea, ginger.</p>
+          <h3 class="dish-name">Bhindi Masala <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">17</span>
+          <p class="dish-desc">Okra sautéed with tomato, onion, amchur, nigella — bright, dry-style.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Chana Masala <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">17</span>
+          <h3 class="dish-name">Chana Masala <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">16</span>
           <p class="dish-desc">Punjabi chickpea curry, pomegranate seed, dried mango.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Malai Kofta <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">20</span>
-          <p class="dish-desc">Potato &amp; paneer dumplings, cashew-saffron gravy.</p>
+          <h3 class="dish-name">Baingan Bharta <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">17</span>
+          <p class="dish-desc">Fire-roasted eggplant, tomato, green pea, ginger.</p>
         </div>
         <div class="dish">
-          <h3 class="dish-name">Aloo Gobi Tawa <span class="tag tag--veg">V</span></h3>
-          <span class="dish-price">17</span>
-          <p class="dish-desc">Cauliflower, potato, nigella, ginger &amp; green chili.</p>
+          <h3 class="dish-name">Aloo Gobi <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3>
+          <span class="dish-price">16</span>
+          <p class="dish-desc">Cauliflower, potato, nigella, ginger &amp; green chili — tawa-seared.</p>
         </div>
       </div>
     </div>
 
     <!-- BREAD & RICE -->
-    <div class="menu-panel" data-panel="bread">
+    <div class="menu-panel" role="tabpanel" id="panel-bread" aria-labelledby="tab-bread" data-panel="bread">
       <div class="menu-grid">
-        <div class="dish"><h3 class="dish-name">Garlic Naan</h3><span class="dish-price">5</span><p class="dish-desc">Tandoor-baked, cold butter, roasted garlic.</p></div>
-        <div class="dish"><h3 class="dish-name">Laccha Paratha</h3><span class="dish-price">6</span><p class="dish-desc">Hundred-layer whole wheat, brushed ghee.</p></div>
-        <div class="dish"><h3 class="dish-name">Kashmiri Naan</h3><span class="dish-price">7</span><p class="dish-desc">Dried fruit, nuts, saffron.</p></div>
-        <div class="dish"><h3 class="dish-name">Jeera Rice <span class="tag tag--veg">V</span></h3><span class="dish-price">6</span><p class="dish-desc">Basmati, cumin, ghee.</p></div>
-        <div class="dish"><h3 class="dish-name">Steamed Basmati <span class="tag tag--veg">V</span></h3><span class="dish-price">5</span><p class="dish-desc">Plain, long-grain, perfect.</p></div>
-        <div class="dish"><h3 class="dish-name">Kulcha, Chef's Choice</h3><span class="dish-price">7</span><p class="dish-desc">Ask your server — we change it daily.</p></div>
+        <div class="dish"><h3 class="dish-name">Butter Naan <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3><span class="dish-price">4</span><p class="dish-desc">Tandoor-baked, cold butter brushed at the pass.</p></div>
+        <div class="dish"><h3 class="dish-name">Garlic Naan <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3><span class="dish-price">5</span><p class="dish-desc">Roasted garlic, cilantro, green chili.</p></div>
+        <div class="dish"><h3 class="dish-name">Laccha Paratha <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3><span class="dish-price">6</span><p class="dish-desc">Hundred-layer whole wheat, brushed ghee.</p></div>
+        <div class="dish"><h3 class="dish-name">Kashmiri Naan <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3><span class="dish-price">7</span><p class="dish-desc">Dried fruit, nuts, saffron.</p></div>
+        <div class="dish"><h3 class="dish-name">Jeera Rice <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span></h3><span class="dish-price">5</span><p class="dish-desc">Basmati, cumin, ghee.</p></div>
+        <div class="dish"><h3 class="dish-name">Steamed Basmati <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span></h3><span class="dish-price">4</span><p class="dish-desc">Plain, long-grain, perfect.</p></div>
       </div>
     </div>
 
     <!-- BAR -->
-    <div class="menu-panel" data-panel="bar">
+    <div class="menu-panel" role="tabpanel" id="panel-bar" aria-labelledby="tab-bar" data-panel="bar">
       <div class="menu-grid">
         <div class="dish">
           <h3 class="dish-name">Holy Basil Gimlet <span class="tag tag--chef">Signature</span></h3>
@@ -1195,7 +1360,12 @@
     </div>
 
     <div class="menu-footer">
-      <span><span class="tag tag--veg">V</span> Vegetarian &nbsp;·&nbsp; <span class="tag tag--spicy">Spicy</span> Medium–Hot &nbsp;·&nbsp; <span class="tag tag--chef">Chef</span> House favorite</span>
+      <span>
+        <span class="tag tag--vegan"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>VG</span> Vegan &nbsp;·&nbsp;
+        <span class="tag tag--veg"><svg viewBox="0 0 14 14"><use href="#leaf-mini"/></svg>V</span> Vegetarian &nbsp;·&nbsp;
+        <span class="tag tag--spicy">Spicy</span> Medium–Hot &nbsp;·&nbsp;
+        <span class="tag tag--chef">Chef</span> House favorite
+      </span>
       <span>Please let us know about allergies. Our kitchen uses tree nuts, dairy, wheat &amp; mustard.</span>
     </div>
   </div>
@@ -1239,6 +1409,10 @@
 </section>
 
 <!-- ============ VISIT ============ -->
+<div class="vine-wrap" aria-hidden="true" style="padding-top:30px;padding-bottom:30px;background:var(--cream)">
+  <svg class="vine-divider vine-divider--cream" viewBox="0 0 600 40" preserveAspectRatio="none"><use href="#vine"/></svg>
+</div>
+
 <section class="visit section-pad" id="visit">
   <svg class="visit-leaf" viewBox="0 0 200 320"><use href="#tulsi-leaf"/></svg>
   <svg class="visit-leaf-2" viewBox="0 0 200 320"><use href="#tulsi-leaf"/></svg>
@@ -1259,9 +1433,9 @@
       <div>
         <ul class="hours-list">
           <li><span class="day">Monday</span><span class="time closed">Closed</span></li>
-          <li><span class="day">Tuesday</span><span class="time">11:00 — 3:00 &nbsp;·&nbsp; Dinner closed</span></li>
+          <li><span class="day">Tuesday</span><span class="time">11:00 — 3:00 &nbsp;·&nbsp; 5:00 — 9:00</span></li>
           <li><span class="day">Wed — Sat</span><span class="time">11:00 — 3:00 &nbsp;·&nbsp; 5:00 — 10:00</span></li>
-          <li><span class="day">Sunday</span><span class="time">11:00 — 3:00 &nbsp;·&nbsp; Dinner closed</span></li>
+          <li><span class="day">Sunday</span><span class="time">11:00 — 3:00 &nbsp;·&nbsp; 5:00 — 9:00</span></li>
         </ul>
         <div id="reserve" style="margin-top:36px; display:flex; gap:12px; flex-wrap:wrap">
           <a href="#reserve" class="btn btn--clay">Reserve on OpenTable</a>
@@ -1338,20 +1512,36 @@
 </footer>
 
 <script>
-  // Menu tabs
+  // Menu tabs — click + keyboard (←/→/Home/End) per WAI-ARIA tabs pattern
   (function(){
-    const tabs = document.querySelectorAll('.menu-tab');
-    const panels = document.querySelectorAll('.menu-panel');
-    tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        const target = tab.dataset.tab;
-        tabs.forEach(t => {
-          t.classList.toggle('is-active', t === tab);
-          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
-        });
-        panels.forEach(p => {
-          p.classList.toggle('is-active', p.dataset.panel === target);
-        });
+    const tablist = document.getElementById('menuTabs');
+    if (!tablist) return;
+    const tabs = Array.from(tablist.querySelectorAll('.menu-tab'));
+    const panels = Array.from(document.querySelectorAll('.menu-panel'));
+
+    const activate = (tab, {setFocus = false} = {}) => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t => {
+        const on = t === tab;
+        t.classList.toggle('is-active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.setAttribute('tabindex', on ? '0' : '-1');
+      });
+      panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === target));
+      if (setFocus) tab.focus();
+      // Keep active tab in view when the tablist scrolls horizontally.
+      tab.scrollIntoView({block:'nearest', inline:'center', behavior:'smooth'});
+    };
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => activate(tab));
+      tab.addEventListener('keydown', (e) => {
+        let next = null;
+        if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+        else if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+        else if (e.key === 'Home') next = tabs[0];
+        else if (e.key === 'End') next = tabs[tabs.length - 1];
+        if (next){ e.preventDefault(); activate(next, {setFocus:true}); }
       });
     });
   })();
