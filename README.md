@@ -337,8 +337,8 @@ GitHub Actions runs on every pull request and on pushes to `main`/`master`
 (`.github/workflows/ci.yml`):
 
 - **Lint** — `ruff check` with inline PR annotations
-- **Test** — `pytest` with coverage across Python 3.11 and 3.12; the coverage
-  report (`coverage.xml`) is uploaded as a build artifact
+- **Test** — `pytest` with coverage across Python 3.11, 3.12, and 3.13; the
+  coverage report (`coverage.xml`) is uploaded as a build artifact
 
 Reproduce the CI checks locally with:
 

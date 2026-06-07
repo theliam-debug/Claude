@@ -37,8 +37,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Matches requires-python (">=3.11") and the project classifiers.
-        python-version: ["3.11", "3.12"]
+        # 3.11/3.12 match requires-python (">=3.11") and the classifiers;
+        # 3.13 is included to catch forward-compatibility regressions early.
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
