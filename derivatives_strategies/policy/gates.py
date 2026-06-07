@@ -7,8 +7,8 @@ Hard gates block actions; soft gates warn but allow.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date, timedelta
-from typing import Optional, Any
+from datetime import date
+from typing import Optional
 from derivatives_strategies.data.models import (
     GateResult,
     GateStatus,
@@ -283,7 +283,6 @@ class DividendGate(Gate):
         from derivatives_strategies.data.models import OptionType
         from derivatives_strategies.dividends.analysis import (
             early_assignment_risk,
-            compute_dividend_pv,
         )
 
         quote = context.target_quote

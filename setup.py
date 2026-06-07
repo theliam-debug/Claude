@@ -23,6 +23,7 @@ setup(
         "dev": [
             "pytest>=7.0",
             "pytest-cov>=4.0",
+            "ruff>=0.6",
         ],
     },
     entry_points={

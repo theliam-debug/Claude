@@ -4,7 +4,6 @@ Tests for the Obsidian vault exporter.
 
 import json
 
-import pytest
 
 from derivatives_strategies.data.models import (
     Position,
@@ -17,7 +16,6 @@ from derivatives_strategies.data.models import (
     GateStatus,
 )
 from derivatives_strategies.monitoring.obsidian import (
-    ObsidianVaultExporter,
     export_vault,
     _slug,
     _merge_block,

@@ -6,10 +6,9 @@ All recommendations and actions are logged with full context.
 
 import json
 import hashlib
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 from derivatives_strategies.data.models import (
     LedgerEntry,
     Recommendation,

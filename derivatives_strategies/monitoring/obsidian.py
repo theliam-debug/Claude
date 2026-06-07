@@ -18,7 +18,6 @@ for the Obsidian Git backup workflow this layout targets.
 
 import json
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 

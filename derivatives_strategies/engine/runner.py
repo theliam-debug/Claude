@@ -20,12 +20,10 @@ from derivatives_strategies.data.models import (
     Position,
     Recommendation,
     OrderIntent,
-    LedgerEntry,
 )
-from derivatives_strategies.data.provider import DataProvider
 from derivatives_strategies.data.demo_provider import DemoProvider
 from derivatives_strategies.data.csv_provider import CSVProvider
-from derivatives_strategies.policy.engine import Policy, load_policy, create_default_policy
+from derivatives_strategies.policy.engine import load_policy, create_default_policy
 from derivatives_strategies.engine.recommender import RecommendationEngine
 from derivatives_strategies.monitoring.ledger import (
     Ledger,
@@ -407,14 +405,14 @@ def run_cli():
         print(f"  - Approved: {result.approved_count}")
         print(f"  - Blocked: {result.blocked_count}")
         print(f"\nOutputs written to: {result.output_dir}")
-        print(f"  - run.json")
-        print(f"  - recommendations.json")
-        print(f"  - orders.json")
-        print(f"  - risk_report.md")
-        print(f"  - ledger.jsonl")
+        print("  - run.json")
+        print("  - recommendations.json")
+        print("  - orders.json")
+        print("  - risk_report.md")
+        print("  - ledger.jsonl")
         if config.vault_dir:
             print(f"\nObsidian vault updated at: {config.vault_dir}")
-            print(f"  - Dashboard.md, Runs/, Symbols/, Recommendations/")
+            print("  - Dashboard.md, Runs/, Symbols/, Recommendations/")
         print(f"{'='*60}\n")
 
     else:

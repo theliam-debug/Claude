@@ -6,9 +6,9 @@ Timestamps are ISO format strings. All monetary values are in base currency unit
 """
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional
 import hashlib
 import json
 

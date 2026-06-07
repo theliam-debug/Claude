@@ -9,7 +9,6 @@ from typing import Optional
 from derivatives_strategies.data.models import OptionType, OptionQuote
 from derivatives_strategies.options.pricing import (
     black_scholes_price,
-    intrinsic_value,
 )
 
 
