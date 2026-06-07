@@ -1,5 +1,7 @@
 # Derivatives Strategies v3
 
+[![CI](https://github.com/theliam-debug/Claude/actions/workflows/ci.yml/badge.svg)](https://github.com/theliam-debug/Claude/actions/workflows/ci.yml)
+
 **Institutional, Policy-Driven Options Overlay Toolkit**
 
 A packaged, testable, auditable engine for options strategy analysis supporting:
@@ -316,6 +318,35 @@ python -m pytest tests/ --cov=derivatives_strategies
 - **Dividend Gate:** Early assignment detection, ITM/OTM handling
 - **Surface:** Interpolation, monotonicity, determinism
 - **Policy:** Gate evaluation, blocking logic, warnings
+- **Obsidian export:** Vault structure, frontmatter/links, incremental accumulation
+
+## Linting
+
+[Ruff](https://docs.astral.sh/ruff/) enforces the lint gate (configured in
+`pyproject.toml`):
+
+```bash
+pip install -e ".[dev]"
+python -m ruff check .        # lint
+python -m ruff check --fix .  # auto-fix safe issues
+```
+
+## Continuous Integration
+
+GitHub Actions runs on every pull request and on pushes to `main`/`master`
+(`.github/workflows/ci.yml`):
+
+- **Lint** — `ruff check` with inline PR annotations
+- **Test** — `pytest` with coverage across Python 3.11 and 3.12; the coverage
+  report (`coverage.xml`) is uploaded as a build artifact
+
+Reproduce the CI checks locally with:
+
+```bash
+pip install -e ".[dev]"
+python -m ruff check .
+python -m pytest -v --cov=derivatives_strategies --cov-report=term-missing
+```
 
 ## Development
 
