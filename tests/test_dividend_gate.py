@@ -2,13 +2,10 @@
 Tests for dividend gate and early assignment risk.
 """
 
-import pytest
-from datetime import date, timedelta
 
 from derivatives_strategies.dividends.analysis import (
     early_assignment_risk,
     compute_dividend_pv,
-    EarlyAssignmentResult,
 )
 from derivatives_strategies.data.models import (
     DividendEvent,

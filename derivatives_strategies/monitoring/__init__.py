@@ -9,9 +9,15 @@ from derivatives_strategies.monitoring.ledger import (
 from derivatives_strategies.monitoring.report import (
     RiskReportGenerator,
 )
+from derivatives_strategies.monitoring.obsidian import (
+    ObsidianVaultExporter,
+    export_vault,
+)
 
 __all__ = [
     "Ledger",
     "create_ledger_entry",
     "RiskReportGenerator",
+    "ObsidianVaultExporter",
+    "export_vault",
 ]

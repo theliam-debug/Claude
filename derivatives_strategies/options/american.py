@@ -100,12 +100,6 @@ def binomial_tree_american(
 
     # Backward induction through the tree
     for step in range(steps - 1, -1, -1):
-        # Adjust stock prices if this step is just before a dividend
-        if step in div_steps:
-            div_amount = div_steps[step]
-        else:
-            div_amount = 0.0
-
         for i in range(step + 1):
             # Stock price at this node
             # We need to calculate based on original spot and path

@@ -2,32 +2,24 @@
 Tests for policy engine and gate evaluation.
 """
 
-import pytest
 
 from derivatives_strategies.policy.engine import (
     PolicyEngine,
     Policy,
     create_default_policy,
-    load_policy,
 )
 from derivatives_strategies.policy.gates import (
     GateContext,
     LiquidityGate,
     EventGate,
-    DividendGate,
     MarginGate,
     ConcentrationGate,
     DTEGate,
-    DeltaGate,
     GateStatus,
 )
 from derivatives_strategies.data.models import (
     OptionQuote,
     OptionType,
-    Position,
-    Chain,
-    SpotQuote,
-    DividendEvent,
 )
 
 

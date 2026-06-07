@@ -23,6 +23,7 @@ setup(
         "dev": [
             "pytest>=7.0",
             "pytest-cov>=4.0",
+            "ruff>=0.6",
         ],
     },
     entry_points={
@@ -37,6 +38,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Office/Business :: Financial :: Investment",
     ],
 )

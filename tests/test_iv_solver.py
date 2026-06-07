@@ -3,7 +3,6 @@ Tests for implied volatility solver.
 """
 
 import pytest
-import math
 
 from derivatives_strategies.surface.iv_solver import (
     implied_volatility,
@@ -177,7 +176,6 @@ class TestImpliedVolatility:
         r = 0.05
 
         # Lower bound for European call: S - K*exp(-rT) ≈ 11.11
-        lower_bound = S - K * math.exp(-r * T)
         price = 5.0  # Below lower bound
 
         with pytest.raises(IVSolverError):

@@ -7,7 +7,7 @@ Implements conservative pricing assumptions:
 - Includes commissions, exchange fees, and slippage estimation
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from derivatives_strategies.data.models import (
     OptionQuote,

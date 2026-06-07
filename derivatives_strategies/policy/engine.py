@@ -180,7 +180,6 @@ def _parse_simple_yaml(content: str) -> dict:
     result: dict = {}
     current_section = result
     section_stack = [(0, result)]
-    current_key = None
     list_key = None
 
     for line in content.split('\n'):

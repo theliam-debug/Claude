@@ -1,5 +1,7 @@
 # Derivatives Strategies v3
 
+[![CI](https://github.com/theliam-debug/Claude/actions/workflows/ci.yml/badge.svg)](https://github.com/theliam-debug/Claude/actions/workflows/ci.yml)
+
 **Institutional, Policy-Driven Options Overlay Toolkit**
 
 A packaged, testable, auditable engine for options strategy analysis supporting:
@@ -46,6 +48,9 @@ python -m derivatives_strategies run \
     --data examples/data \
     --policy examples/policy.example.yml \
     --out ./out
+
+# Also export results into a git-backable Obsidian vault
+python -m derivatives_strategies run --out ./out --vault ./vault
 ```
 
 ### Outputs
@@ -60,6 +65,56 @@ After a run, the following files are produced in the output directory:
 | `risk_report.md` | Human-readable risk report |
 | `ledger.jsonl` | Append-only audit log (JSON lines format) |
 
+## Obsidian Vault Export
+
+Pass `--vault <dir>` to any `run` and the engine additionally writes an
+[Obsidian](https://obsidian.md)-compatible vault of interlinked markdown notes,
+designed to be version-controlled and backed up with the **Obsidian Git**
+community plugin.
+
+### What gets written
+
+```
+vault/
+├── .obsidian/                  # Pre-configured app + Obsidian Git plugin
+│   ├── community-plugins.json  # Enables "obsidian-git"
+│   └── plugins/obsidian-git/data.json  # Auto commit/pull/push every 10 min
+├── .gitignore                  # Ignores Obsidian workspace cache
+├── Dashboard.md                # Map-of-content; running log of all runs
+├── Runs/<run>.md               # One note per run (frontmatter + summary)
+├── Symbols/<SYMBOL>.md         # One note per underlying (accumulates history)
+└── Recommendations/<...>.md    # One note per recommendation
+```
+
+Notes carry YAML frontmatter (`type`, `symbol`, `action`, `approved`, `tags`,
+…), `[[wikilinks]]` between runs, symbols, and recommendations, and nested
+`#tags` (e.g. `action/roll`, `status/blocked`) so Obsidian's graph, search, and
+backlinks work out of the box.
+
+The export is **incremental**: `Symbols/` and `Dashboard.md` use managed marker
+blocks (`<!-- ds:runs:start -->`) so re-running the engine appends to history
+without overwriting your own hand-written notes. Run and recommendation notes
+are rewritten per run.
+
+### Backing up with Obsidian Git
+
+The exporter pre-seeds the [Obsidian Git](https://github.com/Vinzent03/obsidian-git)
+plugin so the vault stays mirrored to a remote (see the
+[setup guide](https://forum.obsidian.md/t/the-easiest-way-to-setup-obsidian-git-to-backup-notes/51429)):
+
+1. Generate the vault: `python -m derivatives_strategies run --vault ./vault`
+2. Initialize git and push to your remote:
+   ```bash
+   cd vault
+   git init && git add . && git commit -m "Initial vault"
+   git remote add origin <your-repo-url>
+   git push -u origin main
+   ```
+3. Open the folder as a vault in Obsidian and **enable the Git community
+   plugin** (it is already listed in `community-plugins.json`). Auto commit,
+   pull, and push are pre-set to a 10-minute interval; adjust under
+   *Settings → Community plugins → Git*.
+
 ## Architecture
 
 ```
@@ -72,7 +127,7 @@ derivatives_strategies/
 ├── policy/         # Gates and policy engine
 ├── margin/         # Margin model hooks
 ├── engine/         # Recommendation engine and CLI
-└── monitoring/     # Ledger and reporting
+└── monitoring/     # Ledger, reporting, and Obsidian vault export
 ```
 
 ## Data Providers
@@ -263,6 +318,35 @@ python -m pytest tests/ --cov=derivatives_strategies
 - **Dividend Gate:** Early assignment detection, ITM/OTM handling
 - **Surface:** Interpolation, monotonicity, determinism
 - **Policy:** Gate evaluation, blocking logic, warnings
+- **Obsidian export:** Vault structure, frontmatter/links, incremental accumulation
+
+## Linting
+
+[Ruff](https://docs.astral.sh/ruff/) enforces the lint gate (configured in
+`pyproject.toml`):
+
+```bash
+pip install -e ".[dev]"
+python -m ruff check .        # lint
+python -m ruff check --fix .  # auto-fix safe issues
+```
+
+## Continuous Integration
+
+GitHub Actions runs on every pull request and on pushes to `main`/`master`
+(`.github/workflows/ci.yml`):
+
+- **Lint** — `ruff check` with inline PR annotations
+- **Test** — `pytest` with coverage across Python 3.11, 3.12, and 3.13; the
+  coverage report (`coverage.xml`) is uploaded as a build artifact
+
+Reproduce the CI checks locally with:
+
+```bash
+pip install -e ".[dev]"
+python -m ruff check .
+python -m pytest -v --cov=derivatives_strategies --cov-report=term-missing
+```
 
 ## Development
 
@@ -317,6 +401,7 @@ None required. All configuration via CLI arguments and policy files.
 | `--out` | Output directory | `./out` |
 | `--demo` | Use demo provider | `true` |
 | `--portfolio-value` | Total portfolio value | `100000.0` |
+| `--vault` | Obsidian vault directory for note export | None (disabled) |
 
 ## Limitations
 

@@ -9,10 +9,8 @@ from datetime import datetime
 from typing import Optional
 from derivatives_strategies.data.models import (
     Recommendation,
-    GateResult,
     GateStatus,
     Position,
-    ActionType,
 )
 
 

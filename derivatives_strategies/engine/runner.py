@@ -20,12 +20,10 @@ from derivatives_strategies.data.models import (
     Position,
     Recommendation,
     OrderIntent,
-    LedgerEntry,
 )
-from derivatives_strategies.data.provider import DataProvider
 from derivatives_strategies.data.demo_provider import DemoProvider
 from derivatives_strategies.data.csv_provider import CSVProvider
-from derivatives_strategies.policy.engine import Policy, load_policy, create_default_policy
+from derivatives_strategies.policy.engine import load_policy, create_default_policy
 from derivatives_strategies.engine.recommender import RecommendationEngine
 from derivatives_strategies.monitoring.ledger import (
     Ledger,
@@ -34,6 +32,7 @@ from derivatives_strategies.monitoring.ledger import (
     log_run_complete,
 )
 from derivatives_strategies.monitoring.report import generate_risk_report
+from derivatives_strategies.monitoring.obsidian import export_vault
 
 
 @dataclass
@@ -47,6 +46,9 @@ class EngineConfig:
     portfolio_value: float = 100000.0
     margin_used: float = 0.0
     margin_available: float = 50000.0
+    # Optional Obsidian vault directory. When set, each run is also exported as
+    # interlinked Obsidian notes for git-backed knowledge management.
+    vault_dir: Optional[str] = None
 
 
 @dataclass
@@ -315,6 +317,19 @@ class Engine:
         with open(self.output_dir / "risk_report.md", 'w') as f:
             f.write(report)
 
+        # Obsidian vault export (optional)
+        if self.config.vault_dir:
+            export_vault(
+                vault_dir=self.config.vault_dir,
+                run_id=self.run_id,
+                timestamp=self.timestamp,
+                as_of=self.provider.get_as_of_date(),
+                policy_name=self.policy.name,
+                recommendations=recommendations,
+                positions=self.positions,
+                portfolio_value=self.config.portfolio_value,
+            )
+
 
 def run_cli():
     """CLI entry point."""
@@ -359,6 +374,11 @@ def run_cli():
         type=float,
         default=100000.0,
     )
+    run_parser.add_argument(
+        '--vault',
+        help='Path to an Obsidian vault directory for note export (git-backable)',
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -370,6 +390,7 @@ def run_cli():
             output_dir=args.out,
             use_demo_provider=args.demo or not args.data,
             portfolio_value=args.portfolio_value,
+            vault_dir=args.vault,
         )
 
         engine = Engine(config)
@@ -384,11 +405,14 @@ def run_cli():
         print(f"  - Approved: {result.approved_count}")
         print(f"  - Blocked: {result.blocked_count}")
         print(f"\nOutputs written to: {result.output_dir}")
-        print(f"  - run.json")
-        print(f"  - recommendations.json")
-        print(f"  - orders.json")
-        print(f"  - risk_report.md")
-        print(f"  - ledger.jsonl")
+        print("  - run.json")
+        print("  - recommendations.json")
+        print("  - orders.json")
+        print("  - risk_report.md")
+        print("  - ledger.jsonl")
+        if config.vault_dir:
+            print(f"\nObsidian vault updated at: {config.vault_dir}")
+            print("  - Dashboard.md, Runs/, Symbols/, Recommendations/")
         print(f"{'='*60}\n")
 
     else:

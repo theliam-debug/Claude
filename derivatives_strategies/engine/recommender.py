@@ -19,11 +19,9 @@ from derivatives_strategies.data.models import (
     Chain,
     Recommendation,
     ActionType,
-    GateResult,
     GateStatus,
     OptionType,
     Economics,
-    TransactionCosts,
     Greeks,
     OrderIntent,
 )
@@ -190,11 +188,8 @@ class RecommendationEngine:
         best_target: Optional[CandidateOption] = None
         alternatives = []
 
-        # Calculate current position value
-        current_value = 0.0
         current_greeks = None
         if current_quote:
-            current_value = current_quote.mid * abs(position.quantity) * 100
             T = dte / 365.0 if dte > 0 else 0.001
 
             # Get IV from surface or estimate

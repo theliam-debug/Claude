@@ -2,8 +2,6 @@
 Tests for volatility surface building and interpolation.
 """
 
-import pytest
-import math
 
 from derivatives_strategies.surface.builder import (
     build_surface,
