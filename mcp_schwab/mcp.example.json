@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy this file to .mcp.json at the repo root to register the Schwab market-data MCP with Claude Code on this project. The agent does not write .mcp.json itself; the human chooses to enable it.",
+  "mcpServers": {
+    "schwab-marketdata": {
+      "command": "python",
+      "args": ["-m", "mcp_schwab"]
+    }
+  }
+}
