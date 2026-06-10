@@ -28,15 +28,22 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
 ]
+schwab = [
+    "mcp[cli]>=1.0",
+    "httpx>=0.27",
+]
 
 [project.scripts]
 ds3 = "derivatives_strategies.engine.runner:run_cli"
+schwab-mcp = "mcp_schwab.server:main"
+schwab-mcp-auth = "mcp_schwab.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/example/derivatives_strategies"
 Documentation = "https://github.com/example/derivatives_strategies#readme"
 
 [tool.setuptools.packages.find]
+include = ["derivatives_strategies*", "mcp_schwab*"]
 exclude = ["tests*", "examples*"]
 
 [tool.pytest.ini_options]
