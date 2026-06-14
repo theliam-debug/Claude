@@ -60,6 +60,68 @@ After a run, the following files are produced in the output directory:
 | `risk_report.md` | Human-readable risk report |
 | `ledger.jsonl` | Append-only audit log (JSON lines format) |
 
+## Equity & Futures Research Tools (Lsto)
+
+The `derivatives_strategies.research` subpackage adds an equity and futures
+research layer on top of the overlay engine. It is built around the external
+**MCP data sources** available to Lsto (market data, SEC EDGAR, FINRA,
+commodities/volatility, and macro/rates) and turns them into deterministic
+research briefs.
+
+```bash
+# List the catalogued research MCP tools (optionally filter by asset class)
+python -m derivatives_strategies research tools
+python -m derivatives_strategies research tools --asset-class futures
+
+# Equity research brief (valuation, technicals, positioning, vol regime)
+python -m derivatives_strategies research equity --symbol AAPL
+python -m derivatives_strategies research equity --symbol AAPL --json --out ./out
+
+# Futures research brief (term structure, roll yield, calendar spreads)
+python -m derivatives_strategies research futures --root /ES
+python -m derivatives_strategies research futures --symbols /ESM26 /ESU26 /ESZ26
+```
+
+### What it covers
+
+| Area | Output |
+|------|--------|
+| **Equity valuation** | P/E, earnings yield, dividend yield, next ex-date |
+| **Equity technicals** | 3/6/12m returns, annualized vol, max drawdown, RSI, 52w range position, SMA50/200 trend |
+| **Equity positioning** | Short interest, days-to-cover, squeeze flag (FINRA) |
+| **Futures term structure** | Contango/backwardation, annualized roll yield, calendar spreads |
+| **Market context** | VIX term structure & volatility regime (low/normal/elevated/crisis) |
+
+Each brief returns a composite rating and a list of plain-English signals, and
+serializes to both Markdown and JSON.
+
+### Mapping research needs to MCP tools
+
+`research/registry.py` is a machine-readable catalog of the relevant MCP tools,
+tagged by asset class and category. Highlights:
+
+| Source | Tools | Used for |
+|--------|-------|----------|
+| Market data (Schwab-style) | `get_quotes`, `get_price_history`, `get_options_chain`, `get_expiration_chain` | Quotes, candles, options/term-structure (equities **and** futures) |
+| SEC EDGAR | `sec_financials`, `sec_insider_trades`, `sec_institutional_holders` | Fundamentals & ownership |
+| FINRA | `finra_short_interest`, `finra_short_volume`, `finra_regsho_daily` | Short positioning |
+| Commodities & vol | `energy_prices`, `metals_prices`, `agriculture_prices`, `vix_term_structure`, `vol_regime` | Futures fundamentals & volatility regime |
+| Macro / rates | `fed_yield_curve`, `treasury_rates`, `fed_policy_rates` | Carry & discounting context |
+
+### Data sources (network-free by design)
+
+Consistent with the rest of the package, the research code never opens a socket
+itself:
+
+- `SampleResearchSource` provides deterministic offline data, so the CLI and
+  tests run with no network or credentials (the default).
+- `MCPResearchSource(call_tool=...)` is wired by an orchestrator that injects a
+  `call_tool(server, tool, params) -> dict` callable, which performs the actual
+  MCP invocation. The normalized model parsers (`from_*_payload`) accept the raw
+  JSON shapes those tools return.
+
+> **Note:** Research analytics are advisory only and are not investment advice.
+
 ## Architecture
 
 ```
@@ -72,7 +134,8 @@ derivatives_strategies/
 ├── policy/         # Gates and policy engine
 ├── margin/         # Margin model hooks
 ├── engine/         # Recommendation engine and CLI
-└── monitoring/     # Ledger and reporting
+├── monitoring/     # Ledger and reporting
+└── research/       # Equity & futures research tools (MCP-backed)
 ```
 
 ## Data Providers

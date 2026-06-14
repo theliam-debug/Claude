@@ -31,6 +31,7 @@ dev = [
 
 [project.scripts]
 ds3 = "derivatives_strategies.engine.runner:run_cli"
+lsto-research = "derivatives_strategies.research.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/example/derivatives_strategies"
