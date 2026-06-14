@@ -26,7 +26,6 @@ from derivatives_strategies.research.models import (
     PriceSeries,
     ShortInterest,
     VolRegime,
-    Bar,
 )
 from derivatives_strategies.research import registry
 

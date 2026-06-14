@@ -2,8 +2,6 @@
 Tests for equity research analytics.
 """
 
-import pytest
-
 from derivatives_strategies.research.models import (
     EquityQuote,
     PriceSeries,
