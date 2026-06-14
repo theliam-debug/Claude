@@ -52,6 +52,23 @@ class TestRollYield:
     def test_invalid_returns_none(self):
         assert annualized_roll_yield(100, 100, date(2026, 6, 15), date(2026, 6, 15)) is None
 
+    def test_non_finite_prices_return_none(self):
+        # Regression: stress test surfaced inf roll yields from bad prices.
+        inf = float("inf")
+        nan = float("nan")
+        assert annualized_roll_yield(inf, 100, date(2026, 3, 15), date(2026, 6, 15)) is None
+        assert annualized_roll_yield(100, nan, date(2026, 3, 15), date(2026, 6, 15)) is None
+
+    def test_brief_roll_yield_always_finite_with_garbage_prices(self):
+        bad = [
+            FuturesQuote.from_quote_payload("/ESM26", {"symbol": "/ESM26", "mark": float("inf")}),
+            FuturesQuote.from_quote_payload("/ESU26", {"symbol": "/ESU26", "mark": 1e-12}),
+            FuturesQuote.from_quote_payload("/ESZ26", {"symbol": "/ESZ26", "mark": 7500.0}),
+        ]
+        brief = analyze_futures(bad)
+        ry = brief.annualized_roll_yield_pct
+        assert ry is None or (isinstance(ry, float) and ry == ry and ry not in (float("inf"), float("-inf")))
+
 
 class TestAnalyzeFutures:
     def _q(self, sym, price):

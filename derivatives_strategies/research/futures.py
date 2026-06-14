@@ -13,6 +13,7 @@ F G H J K M N Q U V X Z mapping.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
@@ -143,7 +144,8 @@ def _curve_points(quotes: list[FuturesQuote]) -> list[tuple[FutureContract, floa
     for q in quotes:
         contract = parse_future_symbol(q.symbol)
         price = q.reference_price
-        if contract is not None and price is not None and price > 0:
+        if (contract is not None and price is not None
+                and math.isfinite(price) and price > 0):
             points.append((contract, price))
     points.sort(key=lambda cp: cp[0].expiry_proxy)
     return points
@@ -165,8 +167,11 @@ def annualized_roll_yield(
     days = (far_expiry - near_expiry).days
     if days <= 0 or far_price <= 0:
         return None
+    if not (math.isfinite(near_price) and math.isfinite(far_price)):
+        return None
     period_yield = near_price / far_price - 1.0
-    return 100.0 * period_yield * (365.0 / days)
+    result = 100.0 * period_yield * (365.0 / days)
+    return result if math.isfinite(result) else None
 
 
 def analyze_futures(
