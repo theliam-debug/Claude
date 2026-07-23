@@ -1,13 +1,15 @@
 """
-Append-only ledger for audit trail.
+Append-only, hash-chained ledger for audit trail.
 
-All recommendations and actions are logged with full context.
+All recommendations and actions are logged with full context. Each entry
+embeds the hash of the previous entry, so edits, deletions, or reordering
+of history break the chain and are detected by verify().
 """
 
 import json
 import hashlib
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
 from derivatives_strategies.data.models import (
@@ -16,13 +18,32 @@ from derivatives_strategies.data.models import (
     Position,
 )
 
+GENESIS_HASH = "0" * 64
+
+
+@dataclass
+class LedgerVerification:
+    """Outcome of a full-chain ledger verification."""
+    valid: bool
+    entries: int
+    first_bad_seq: Optional[int] = None
+    errors: list = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "valid": self.valid,
+            "entries": self.entries,
+            "first_bad_seq": self.first_bad_seq,
+            "errors": list(self.errors),
+        }
+
 
 class Ledger:
     """
     Append-only ledger for audit trail.
 
-    All entries are written as JSON lines to ensure immutability
-    and easy parsing.
+    Entries are JSON lines forming a SHA-256 hash chain. The chain head is
+    re-derived from the file on open, so sequential runs extend one chain.
     """
 
     def __init__(self, path: str):
@@ -34,6 +55,7 @@ class Ledger:
         """
         self.path = Path(path)
         self._ensure_exists()
+        self._seq, self._head = self._load_head()
 
     def _ensure_exists(self) -> None:
         """Ensure ledger file exists."""
@@ -41,15 +63,43 @@ class Ledger:
         if not self.path.exists():
             self.path.touch()
 
-    def append(self, entry: LedgerEntry) -> None:
+    def _load_head(self) -> tuple:
+        """Resume the chain from the last entry; genesis when empty."""
+        last = None
+        with open(self.path, 'r') as f:
+            for line in f:
+                if line.strip():
+                    last = line
+        if last is None:
+            return 0, GENESIS_HASH
+        data = json.loads(last)
+        # Pre-chaining entries (no seq/entry_hash) restart the count but the
+        # verify() report will flag them explicitly.
+        return data.get('seq', 0), data.get('entry_hash', GENESIS_HASH)
+
+    @property
+    def head_hash(self) -> str:
+        """Current chain head — anchor this out-of-band (e.g. in run.json)."""
+        return self._head
+
+    def append(self, entry: LedgerEntry) -> LedgerEntry:
         """
-        Append entry to ledger.
+        Append entry to ledger, extending the hash chain.
 
         Args:
-            entry: Ledger entry to append
+            entry: Ledger entry to append (seq/prev_hash/entry_hash are set here)
+
+        Returns:
+            The entry with chain fields populated
         """
+        entry.seq = self._seq + 1
+        entry.prev_hash = self._head
+        entry.entry_hash = entry.compute_hash()
         with open(self.path, 'a') as f:
             f.write(entry.to_json_line() + '\n')
+        self._seq = entry.seq
+        self._head = entry.entry_hash
+        return entry
 
     def read_all(self) -> list[dict]:
         """
@@ -88,6 +138,43 @@ class Ledger:
         """Get total number of entries."""
         return len(self.read_all())
 
+    def verify(self) -> LedgerVerification:
+        """
+        Walk the chain from genesis, detecting edited payloads, deleted or
+        reordered entries, and forged hashes.
+        """
+        entries = self.read_all()
+        errors = []
+        first_bad = None
+        prev_hash = GENESIS_HASH
+        expected_seq = 1
+        for raw in entries:
+            problems = []
+            if raw.get('seq') != expected_seq:
+                problems.append(
+                    f"seq {raw.get('seq')} != expected {expected_seq}"
+                )
+            if raw.get('prev_hash') != prev_hash:
+                problems.append("prev_hash mismatch (chain break)")
+            recomputed = hashlib.sha256(json.dumps(
+                {k: v for k, v in raw.items() if k != 'entry_hash'},
+                sort_keys=True, default=str,
+            ).encode()).hexdigest()
+            if recomputed != raw.get('entry_hash'):
+                problems.append("entry_hash mismatch (content altered)")
+            if problems:
+                if first_bad is None:
+                    first_bad = raw.get('seq')
+                errors.append({"seq": raw.get('seq'), "problems": problems})
+            prev_hash = raw.get('entry_hash', prev_hash)
+            expected_seq = (raw.get('seq') or expected_seq) + 1
+        return LedgerVerification(
+            valid=not errors,
+            entries=len(entries),
+            first_bad_seq=first_bad,
+            errors=errors,
+        )
+
 
 def create_ledger_entry(
     run_id: str,
@@ -111,7 +198,7 @@ def create_ledger_entry(
     Returns:
         LedgerEntry ready to append
     """
-    timestamp = datetime.utcnow().isoformat() + 'Z'
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     # Compute inputs hash
     inputs_data = {}
@@ -124,7 +211,7 @@ def create_ledger_entry(
 
     inputs_hash = hashlib.sha256(
         json.dumps(inputs_data, sort_keys=True, default=str).encode()
-    ).hexdigest()[:16]
+    ).hexdigest()
 
     return LedgerEntry(
         run_id=run_id,

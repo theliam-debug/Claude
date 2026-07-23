@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "derivatives_strategies"
-version = "3.0.0"
-description = "Institutional, Policy-Driven Options Overlay Toolkit"
+name = "lsto-toolkit"
+version = "3.1.0"
+description = "LsTo decision-support toolkit: governed agent workforce + policy-driven options overlay analytics"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Derivatives Strategies Team"}
+    {name = "LsTo"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -21,7 +21,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial :: Investment",
 ]
-dependencies = []
+dependencies = [
+    "PyYAML>=6.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -31,13 +33,16 @@ dev = [
 
 [project.scripts]
 ds3 = "derivatives_strategies.engine.runner:run_cli"
+lsto-workforce = "lsto_workforce.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/example/derivatives_strategies"
-Documentation = "https://github.com/example/derivatives_strategies#readme"
+Homepage = "https://github.com/theliam-debug/Claude"
+Documentation = "https://github.com/theliam-debug/Claude#readme"
 
 [tool.setuptools.packages.find]
-exclude = ["tests*", "examples*"]
+# Explicit include list: namespace-mode discovery previously swept any
+# stray root directory (build/, out/) into the wheel.
+include = ["derivatives_strategies*", "lsto_workforce*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

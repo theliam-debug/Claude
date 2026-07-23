@@ -276,7 +276,7 @@ class Greeks:
             "gamma": round(self.gamma, 6),
             "theta": round(self.theta, 4),
             "vega": round(self.vega, 4),
-            "rho": round(self.rho, 4) if self.rho else None,
+            "rho": round(self.rho, 4) if self.rho is not None else None,
         }
 
 
@@ -301,7 +301,13 @@ class TransactionCosts:
 
 @dataclass
 class Economics:
-    """Full economics of a recommendation."""
+    """
+    Full economics of a recommendation.
+
+    Unit convention: all monetary fields (gross_premium, net_premium,
+    max_profit, max_loss) are TOTAL DOLLARS for the whole action — every
+    contract, contract multiplier included. breakeven is a per-share price.
+    """
     gross_premium: float  # Before costs
     transaction_costs: TransactionCosts
     net_premium: float  # After costs
@@ -317,8 +323,11 @@ class Economics:
             "net_premium": round(self.net_premium, 4),
             "max_profit": round(self.max_profit, 4),
             "max_loss": round(self.max_loss, 4),
-            "breakeven": round(self.breakeven, 4) if self.breakeven else None,
-            "annualized_return": round(self.annualized_return, 4) if self.annualized_return else None,
+            "breakeven": round(self.breakeven, 4) if self.breakeven is not None else None,
+            "annualized_return": (
+                round(self.annualized_return, 4)
+                if self.annualized_return is not None else None
+            ),
         }
 
 
@@ -350,16 +359,28 @@ class Recommendation:
     warnings: list[str] = field(default_factory=list)
 
     def inputs_hash(self) -> str:
-        """Hash of inputs for audit trail."""
+        """
+        Content hash binding this recommendation to everything that produced
+        it: run, position, action, targets, economics, gate outcomes, and
+        approval state. Any change to any of these changes the hash.
+        """
         data = {
+            "run_id": self.run_id,
+            "timestamp": self.timestamp,
             "position": self.position.to_dict(),
             "action": self.action.value,
             "target_strike": self.target_strike,
             "target_expiry": self.target_expiry,
+            "target_quantity": self.target_quantity,
+            "gate_results": [g.to_dict() for g in self.gate_results],
+            "economics": self.economics.to_dict() if self.economics else None,
+            "greeks": self.greeks.to_dict() if self.greeks else None,
+            "approved": self.approved,
+            "blocked_by": self.blocked_by,
         }
         return hashlib.sha256(
-            json.dumps(data, sort_keys=True).encode()
-        ).hexdigest()[:16]
+            json.dumps(data, sort_keys=True, default=str).encode()
+        ).hexdigest()
 
     def to_dict(self) -> dict:
         return {
@@ -420,21 +441,42 @@ class OrderIntent:
 
 @dataclass
 class LedgerEntry:
-    """Append-only ledger entry for audit trail."""
+    """
+    Append-only ledger entry for audit trail.
+
+    Entries are hash-chained: prev_hash points at the previous entry's
+    entry_hash, so any edit, deletion, or reordering of history breaks the
+    chain and is detected by Ledger.verify().
+    """
     run_id: str
     timestamp: str
     action: str
     inputs_hash: str
     policy_hash: str
     details: dict = field(default_factory=dict)
+    seq: int = 0
+    prev_hash: str = ""
+    entry_hash: str = ""
 
-    def to_json_line(self) -> str:
-        data = {
+    def content_dict(self) -> dict:
+        """Every field covered by entry_hash (all but entry_hash itself)."""
+        return {
             "run_id": self.run_id,
             "timestamp": self.timestamp,
             "action": self.action,
             "inputs_hash": self.inputs_hash,
             "policy_hash": self.policy_hash,
             "details": self.details,
+            "seq": self.seq,
+            "prev_hash": self.prev_hash,
         }
-        return json.dumps(data)
+
+    def compute_hash(self) -> str:
+        return hashlib.sha256(
+            json.dumps(self.content_dict(), sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+    def to_json_line(self) -> str:
+        data = self.content_dict()
+        data["entry_hash"] = self.entry_hash
+        return json.dumps(data, sort_keys=True)

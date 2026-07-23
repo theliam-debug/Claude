@@ -188,12 +188,15 @@ def early_assignment_risk(
     # Compute dividend PV
     div_pv = compute_dividend_pv(dividend, as_of, rate)
 
-    # Check the early assignment condition:
-    # Extrinsic value < PV(dividend) implies rational early exercise
-    at_risk = extrinsic < div_pv
+    # Early assignment condition: extrinsic < PV(dividend) implies rational
+    # early exercise — but only imminently, when the ex-date is inside the
+    # monitoring window. Further out, extrinsic will evolve before the
+    # exercise decision is actually made.
+    condition_met = extrinsic < div_pv
+    at_risk = condition_met and days_to_ex <= window_days
 
     # Estimate assignment probability (rough heuristic)
-    if at_risk:
+    if condition_met:
         # Deep ITM with tiny extrinsic: high probability
         if extrinsic < 0.5 * div_pv:
             prob = 0.90
@@ -221,6 +224,11 @@ def early_assignment_risk(
         message = (
             f"HIGH early assignment risk: extrinsic ({extrinsic:.2f}) < "
             f"dividend PV ({div_pv:.2f}), {days_to_ex} days to ex-date"
+        )
+    elif condition_met:
+        message = (
+            f"Extrinsic ({extrinsic:.2f}) < dividend PV ({div_pv:.2f}) but "
+            f"ex-date is {days_to_ex} days out (window {window_days}); monitor"
         )
     else:
         message = (
@@ -274,6 +282,10 @@ def should_roll_before_dividend(
     as_of_date = date.fromisoformat(as_of[:10])
     ex_date = date.fromisoformat(dividend.ex_date)
     days_to_ex = (ex_date - as_of_date).days
+
+    # Ex-date already passed: the dividend no longer creates assignment risk
+    if days_to_ex <= 0:
+        return False, "Dividend ex-date has passed; no roll needed for this event"
 
     # Too far out
     if days_to_ex > 7:

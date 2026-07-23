@@ -104,12 +104,13 @@ class DemoProvider(DataProvider):
         amount = data["dividend_amount"]
         freq_days = data["dividend_frequency_days"]
 
-        # Generate quarterly dividends starting from a fixed anchor
+        # Generate quarterly dividends starting from a fixed anchor.
+        # Eight quarters spanning this year and next, so an as_of late in
+        # the year still sees upcoming dividends.
         anchor = date(self._as_of.year, 1, 15)  # Jan 15 of current year
         dividends = []
 
-        # Generate dividends for the year
-        for i in range(4):
+        for i in range(8):
             ex_date = anchor + timedelta(days=i * freq_days)
             pay_date = ex_date + timedelta(days=14)
 

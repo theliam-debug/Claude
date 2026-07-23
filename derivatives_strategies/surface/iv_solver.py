@@ -91,12 +91,20 @@ def implied_volatility(
     f_high = objective(vol_high)
 
     if f_low > 0:
-        # Price too high for even lowest vol - likely data issue
+        # Price sits between discounted intrinsic and BS(min_vol): the
+        # implied vol is below the minimum bound; min bound is the honest
+        # answer (error bounded by vol_bounds[0]).
         return vol_low
 
     if f_high < 0:
-        # Price too low for even highest vol - likely data issue
-        return vol_high
+        # Price above BS(max_vol): the quote implies a volatility beyond
+        # the search bound. Silently returning max_vol would launder a bad
+        # quote into a plausible IV — fail loudly instead.
+        raise IVSolverError(
+            f"Price {price:.4f} implies volatility above the "
+            f"{vol_high:.1f} search bound (BS(max_vol)={f_high + price:.4f}); "
+            "quote is likely bad data"
+        )
 
     # Brent's method
     a, b = vol_low, vol_high
@@ -118,11 +126,16 @@ def implied_volatility(
             a, b, c = b, c, b
             fa, fb, fc = fb, fc, fb
 
-        # Convergence check
+        # Convergence check. Price-space closeness alone is NOT sufficient:
+        # for tiny-vega options (deep ITM, short expiry) a wide range of
+        # vols reprices within tol, so we also require the vol bracket to
+        # be tight before accepting.
         tol1 = 2 * 1e-12 * abs(b) + 0.5 * tol
         xm = 0.5 * (c - b)
 
-        if abs(xm) <= tol1 or abs(fb) < tol:
+        if abs(xm) <= tol1:
+            return b
+        if abs(fb) < tol and abs(xm) <= 1e-6:
             return b
 
         if abs(e) >= tol1 and abs(fa) > abs(fb):
@@ -162,8 +175,10 @@ def implied_volatility(
 
         fb = objective(b)
 
-    # If we reach here, didn't converge - return best estimate
-    return b
+    raise IVSolverError(
+        f"Brent's method did not converge after {max_iter} iterations "
+        f"(last iterate {b:.6f}, residual {fb:.2e})"
+    )
 
 
 def iv_from_quote(
@@ -251,9 +266,6 @@ def newton_iv(
         model_price = black_scholes_price(S, K, T, r, sigma, option_type, q)
         diff = model_price - price
 
-        if abs(diff) < tol:
-            return sigma
-
         # Vega for Newton step (convert from per 1% to per 1.0)
         v = calc_vega(S, K, T, r, sigma, q) * 100
 
@@ -261,9 +273,15 @@ def newton_iv(
             raise IVSolverError("Vega too small for Newton's method")
 
         # Newton step
-        sigma -= diff / v
+        step = diff / v
+        sigma_new = max(0.001, min(5.0, sigma - step))
 
-        # Bound sigma
-        sigma = max(0.001, min(5.0, sigma))
+        # Converged only when the price matches AND the vol iterate has
+        # stabilized — price closeness alone is meaningless for tiny-vega
+        # options, where any sigma reprices within tol.
+        if abs(diff) < tol and abs(sigma_new - sigma) < 1e-8:
+            return sigma_new
+
+        sigma = sigma_new
 
     raise IVSolverError(f"Newton's method did not converge after {max_iter} iterations")

@@ -88,9 +88,10 @@ class CostModel:
             sec_fee = proceeds * self.sec_fee_rate
             exchange_fees += sec_fee
 
-        # Slippage estimation
-        base_slippage = self.slippage_per_contract * abs_qty * self.multiplier
-        volume_slippage = self.slippage_volume_factor * abs_qty * abs_qty * self.multiplier
+        # Slippage estimation. Both terms are per-contract dollar amounts —
+        # no contract multiplier, matching commission and exchange fees.
+        base_slippage = self.slippage_per_contract * abs_qty
+        volume_slippage = self.slippage_volume_factor * abs_qty * abs_qty
         slippage = base_slippage + volume_slippage
 
         total = spread_cost + commission + exchange_fees + slippage

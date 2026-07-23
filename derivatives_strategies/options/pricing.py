@@ -240,8 +240,14 @@ def option_price(
                 pv = amount * math.exp(-r * t_div)
                 S_adj -= pv
 
-    # Ensure adjusted spot is positive
-    S_adj = max(0.01, S_adj)
+    # Dividends worth as much as the stock are bad inputs, not a pricing
+    # case — silently clamping would return a near-zero-spot price with no
+    # signal that the inputs were impossible.
+    if S_adj <= 0:
+        raise ValueError(
+            f"PV of dividends ({S - S_adj:.4f}) >= spot ({S:.4f}); "
+            "check dividend inputs"
+        )
 
     return black_scholes_price(S_adj, K, T, r, sigma, option_type, q)
 
