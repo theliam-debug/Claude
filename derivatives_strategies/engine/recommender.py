@@ -37,6 +37,7 @@ from derivatives_strategies.costs.model import (
 )
 from derivatives_strategies.options.greeks import compute_all_greeks
 from derivatives_strategies.surface.builder import build_surface
+from derivatives_strategies.margin.model import RegTMargin
 
 
 @dataclass
@@ -89,6 +90,7 @@ class RecommendationEngine:
         portfolio_value: float = 0.0,
         margin_used: float = 0.0,
         margin_available: float = 0.0,
+        covered_shares: int = 0,
     ) -> Recommendation:
         """
         Analyze a single position and generate recommendation.
@@ -98,6 +100,9 @@ class RecommendationEngine:
             portfolio_value: Total portfolio value
             margin_used: Current margin used
             margin_available: Available margin
+            covered_shares: Long shares of this symbol held elsewhere in the
+                portfolio (used to net down the proposed trade's margin
+                requirement for covered calls)
 
         Returns:
             Recommendation for the position
@@ -151,7 +156,7 @@ class RecommendationEngine:
         if position.is_option and position.quantity < 0:
             # Short option - evaluate hold/close/roll
             return self._evaluate_short_option(
-                position, chain, current_quote, context, timestamp
+                position, chain, current_quote, context, timestamp, covered_shares
             )
         elif position.position_type == "stock" and position.quantity > 0:
             # Long stock without covered call - potentially open
@@ -176,6 +181,7 @@ class RecommendationEngine:
         current_quote: Optional[OptionQuote],
         context: GateContext,
         timestamp: str,
+        covered_shares: int = 0,
     ) -> Recommendation:
         """Evaluate short option position for hold/close/roll."""
         rate = context.rate
@@ -278,6 +284,17 @@ class RecommendationEngine:
                 context.target_delta = best_target.greeks.delta
         if best_action == ActionType.ROLL and best_target:
             context.net_credit = best_target.economics.net_premium
+            # Reg-T initial margin for the new short leg, net of stock
+            # coverage — covered contracts require ~0 additional margin.
+            context.trade_margin_requirement = self._trade_margin_requirement(
+                symbol=position.symbol,
+                quantity=position.quantity,
+                target_strike=best_target.quote.strike,
+                target_expiry=best_target.quote.expiry,
+                target_quote=best_target.quote,
+                spot=chain.spot.mid,
+                covered_shares=covered_shares,
+            )
         gate_results = self.policy_engine.evaluate(context)
 
         # Check for blocks
@@ -308,6 +325,37 @@ class RecommendationEngine:
         )
 
         return rec
+
+    def _trade_margin_requirement(
+        self,
+        symbol: str,
+        quantity: int,
+        target_strike: float,
+        target_expiry: str,
+        target_quote: OptionQuote,
+        spot: float,
+        covered_shares: int,
+    ) -> float:
+        """
+        Reg-T initial margin (total dollars) for opening the new short leg,
+        netting stock coverage. Covered contracts require no additional
+        margin; only genuinely naked contracts do. Conservative by design —
+        a hard gate should over-flag margin, not miss it.
+        """
+        contracts = abs(quantity)
+        covered_contracts = max(0, covered_shares) // 100
+        naked_contracts = max(0, contracts - covered_contracts)
+        if naked_contracts == 0:
+            return 0.0
+        naked_leg = Position(
+            symbol=symbol,
+            quantity=-naked_contracts,
+            position_type="call",
+            strike=target_strike,
+            expiry=target_expiry,
+        )
+        req = RegTMargin().calculate_margin(naked_leg, target_quote, spot, 0.0)
+        return req.initial_margin
 
     def _find_roll_candidates(
         self,

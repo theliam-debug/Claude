@@ -297,8 +297,10 @@ harness. Regression tests for the 2026-07 audit live in
 
 - **No live trading:** analysis tooling only
 - **No network calls:** all data via files or the demo provider
-- **Simplified margin:** Reg-T approximation; per-trade margin is not yet
-  computed by the engine (margin inputs come from CLI flags)
+- **Simplified margin:** Reg-T approximation. The engine computes the
+  proposed roll's coverage-aware requirement for `MarginGate`, but it is an
+  approximation (short legs treated as naked unless covered by portfolio
+  shares) — not the broker's own margin determination
 - **European pricing core:** Black-Scholes base; escrowed-dividend binomial
   tree for American diagnostics
 - **Single currency:** USD only

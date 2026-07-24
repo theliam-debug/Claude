@@ -226,6 +226,13 @@ class Engine:
             run_id=self.run_id,
         )
 
+        # Long stock held per symbol, so covered calls net down their margin
+        # requirement against the shares that cover them.
+        stock_by_symbol: dict[str, int] = {}
+        for p in self.positions:
+            if p.position_type == "stock" and p.quantity > 0:
+                stock_by_symbol[p.symbol] = stock_by_symbol.get(p.symbol, 0) + p.quantity
+
         # Generate recommendations for each position
         recommendations = []
         for position in self.positions:
@@ -234,6 +241,7 @@ class Engine:
                 portfolio_value=self.config.portfolio_value,
                 margin_used=self.config.margin_used,
                 margin_available=self.config.margin_available,
+                covered_shares=stock_by_symbol.get(position.symbol, 0),
             )
             recommendations.append(rec)
 

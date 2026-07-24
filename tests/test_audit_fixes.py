@@ -151,6 +151,32 @@ class TestGateFixes:
         assert result.status == GateStatus.PASS
         assert result.details.get("skipped") is True
 
+    def test_margin_gate_evaluates_trade_requirement_post_trade(self):
+        # A trade requiring more than the available buffer blocks even when
+        # the pre-trade book is healthy (post-trade utilization is checked).
+        gate = MarginGate(max_margin_utilization=0.80, min_margin_buffer=0.20)
+        healthy = gate.evaluate(make_context(
+            margin_used=10_000.0, margin_available=90_000.0,
+        ))
+        assert healthy.status == GateStatus.PASS
+        blocked = gate.evaluate(make_context(
+            margin_used=70_000.0, margin_available=15_000.0,
+            trade_margin_requirement=12_000.0,
+        ))
+        assert blocked.status == GateStatus.BLOCK
+        assert blocked.details["trade_margin_requirement"] == 12_000.0
+
+    def test_margin_gate_zero_trade_requirement_is_backward_compatible(self):
+        gate = MarginGate()
+        without = gate.evaluate(make_context(
+            margin_used=10_000.0, margin_available=90_000.0,
+        ))
+        with_zero = gate.evaluate(make_context(
+            margin_used=10_000.0, margin_available=90_000.0,
+            trade_margin_requirement=0.0,
+        ))
+        assert without.details["utilization"] == with_zero.details["utilization"]
+
     def test_roll_credit_gate_uses_real_net_credit(self):
         # Previously used spot price as "credit" and could never fire.
         gate = RollCreditGate(min_net_credit=50.0)
@@ -405,3 +431,45 @@ class TestEngineIntegration:
         model = CostModel()
         costs = model.compute_costs(make_quote(), quantity=1, is_buy=False)
         assert costs.slippage == pytest.approx(0.02 + 0.001)
+
+    def _rec_engine(self):
+        from derivatives_strategies.engine.recommender import RecommendationEngine
+        from derivatives_strategies.data.demo_provider import DemoProvider
+        from derivatives_strategies.policy.engine import create_default_policy
+        return RecommendationEngine(DemoProvider(), create_default_policy())
+
+    def test_covered_call_trade_requires_no_added_margin(self):
+        # Audit M8: the new short leg of a covered call nets against the
+        # shares that cover it — 100 shares cover 1 contract -> requirement 0.
+        engine = self._rec_engine()
+        req = engine._trade_margin_requirement(
+            symbol="AAPL", quantity=-1, target_strike=185.0,
+            target_expiry="2025-03-21", target_quote=make_quote(strike=185.0),
+            spot=175.0, covered_shares=100,
+        )
+        assert req == 0.0
+
+    def test_naked_short_trade_requires_reg_t_margin(self):
+        engine = self._rec_engine()
+        req = engine._trade_margin_requirement(
+            symbol="AAPL", quantity=-1, target_strike=185.0,
+            target_expiry="2025-03-21", target_quote=make_quote(strike=185.0),
+            spot=175.0, covered_shares=0,
+        )
+        # Naked call Reg-T initial margin is materially positive.
+        assert req > 1000.0
+
+    def test_partial_coverage_only_charges_naked_contracts(self):
+        engine = self._rec_engine()
+        # 100 shares cover 1 of 3 contracts -> 2 naked contracts charged.
+        partial = engine._trade_margin_requirement(
+            symbol="AAPL", quantity=-3, target_strike=185.0,
+            target_expiry="2025-03-21", target_quote=make_quote(strike=185.0),
+            spot=175.0, covered_shares=100,
+        )
+        naked_two = engine._trade_margin_requirement(
+            symbol="AAPL", quantity=-2, target_strike=185.0,
+            target_expiry="2025-03-21", target_quote=make_quote(strike=185.0),
+            spot=175.0, covered_shares=0,
+        )
+        assert partial == pytest.approx(naked_two)

@@ -43,6 +43,10 @@ class GateContext:
     # Proposed action ("hold", "close", "roll", "open") — lets gates
     # distinguish adding exposure from managing existing exposure.
     proposed_action: Optional[str] = None
+    # Initial margin (total dollars) the proposed trade would require, net of
+    # stock coverage. None means the engine did not compute it (MarginGate
+    # then evaluates only the supplied aggregate figures).
+    trade_margin_requirement: Optional[float] = None
 
     def __post_init__(self):
         if self.dividends is None:
@@ -458,7 +462,10 @@ class MarginGate(Gate):
                 actual=1.0,
             )
 
-        # Calculate utilization
+        # Calculate utilization. If the engine supplied the proposed trade's
+        # margin requirement, evaluate the POST-TRADE state: the requirement
+        # moves from available into used, so the gate answers "can this book
+        # absorb the trade?" rather than only "is the book healthy now?".
         total_margin = context.margin_used + context.margin_available
         if total_margin <= 0:
             return self._make_result(
@@ -466,12 +473,16 @@ class MarginGate(Gate):
                 details={"skipped": True},
             )
 
-        utilization = context.margin_used / total_margin
-        buffer = context.margin_available / total_margin
+        trade_req = context.trade_margin_requirement or 0.0
+        effective_used = context.margin_used + trade_req
+        effective_available = context.margin_available - trade_req
+        utilization = effective_used / total_margin
+        buffer = effective_available / total_margin
 
         details = {
             "margin_used": context.margin_used,
             "margin_available": context.margin_available,
+            "trade_margin_requirement": trade_req,
             "utilization": utilization,
             "buffer": buffer,
         }
