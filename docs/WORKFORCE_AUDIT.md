@@ -66,8 +66,8 @@ regression test in `tests/test_audit_fixes.py` / `tests/test_math_fixes.py`.
 | M7 | Falsy-zero serialization dropped legitimate 0.0 values (rho, breakeven, annualized_return) | **Fixed** — `is not None` |
 | M8 | `margin/model.py` was dead code (arithmetic verified correct, never called, zero coverage) | **Fixed** — `RegTMargin` is now wired into the engine: `MarginGate` evaluates the proposed roll's coverage-aware Reg-T requirement post-trade (covered contracts net to ~0; only genuinely naked contracts add margin), so the gate can block a trade the book cannot absorb. Under unit test. |
 | M9 | Orchestration layer had ~0–38% test coverage; `load_policy` was imported by tests but never called | **Fixed** — 68 new regression tests target exactly the previously-dark paths (187 total, from 52) |
-| M10 | Dividend at exactly `t_div == T` ignored (1.18 price cliff at the boundary); ATM smile-dedup order-dependence; deep-ITM American put quotes rejected by European bounds then flat-extrapolated | **Documented, open** — convention/edge items; acceptable for the current scope, listed here so they are chosen, not unknown |
-| M11 | `ExpirySmile.get_iv` linear scan; repeated ISO date parsing in surface lookups; `validate_surface` recomputing slopes | **Open** — micro-efficiencies; not user-visible at current chain sizes |
+| M10 | Dividend at exactly `t_div == T` ignored (1.18 price cliff at the boundary); ATM smile-dedup order-dependence; deep-ITM American put quotes rejected by European bounds then flat-extrapolated | **Mostly fixed** — smile dedup is now deterministic (tightest quoted spread wins a contested strike, calls as stable tiebreak), verified order-independent against a reversed chain. The dividend-at-expiry rule is a deliberate convention, now stated explicitly in `pricing.option_price` and consistent with the binomial tree. The deep-ITM American-put bound remains open by choice: European bounds are correct for a European-pricing surface, and `prefer_otm` already avoids those quotes. |
+| M11 | `ExpirySmile.get_iv` linear scan; repeated ISO date parsing in surface lookups; `validate_surface` recomputing slopes | **Fixed** — smile lookup uses bisect over a cached key list (**72× faster** on a 4,000-point smile; verified bit-identical to the old scan across 20k probes), expiry year-fractions are memoized on the surface, and `validate_surface` computes each segment slope once. |
 
 ## 4. Verified-good (independent checks that passed)
 
@@ -93,8 +93,9 @@ arithmetic (naked 20%/10% rules, covered/partial decomposition).
 4. **Calibration needs time.** Brier scores are meaningless until forecasts
    resolve; resolve them on their judge-by dates (scorecard shows the
    backlog).
-5. **The M10/M11 edge items remain open by choice** — tracked here rather
-   than silently absent. Per-trade margin (M8) is now wired in, but it is a
-   Reg-T *approximation* that treats the short leg conservatively (naked
-   unless covered by shares in the same portfolio); it is not a substitute
-   for the broker's own margin determination.
+5. **Two items remain open by choice**, tracked here rather than silently
+   absent: the deep-ITM American-put arbitrage bound (M10) and the operating
+   cadence (S8). Per-trade margin (M8) is now wired in, but it is a Reg-T
+   *approximation* that treats the short leg conservatively (naked unless
+   covered by shares in the same portfolio); it is not a substitute for the
+   broker's own margin determination.

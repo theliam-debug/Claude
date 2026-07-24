@@ -8,6 +8,7 @@ Constructs volatility surface from option chain with:
 """
 
 import math
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
@@ -38,15 +39,26 @@ class ExpirySmile:
     forward: float
     points: list[SmilePoint] = field(default_factory=list)
 
+    # Cached ascending log-moneyness keys for O(log n) bracketing. Rebuilt
+    # whenever the point count changes (the builder appends then sorts).
+    _keys: list = field(default_factory=list, repr=False, compare=False)
+
     def __post_init__(self):
         # Sort by log-moneyness
         self.points.sort(key=lambda p: p.log_moneyness)
+        self._keys = []
+
+    def _moneyness_keys(self) -> list:
+        if len(self._keys) != len(self.points):
+            self._keys = [p.log_moneyness for p in self.points]
+        return self._keys
 
     def get_iv(self, strike: float) -> Optional[float]:
         """
         Interpolate IV for a given strike.
 
-        Uses piecewise linear interpolation in log-moneyness space.
+        Uses piecewise linear interpolation in log-moneyness space, with
+        binary search for the bracketing points (O(log n) per lookup).
         """
         if not self.points:
             return None
@@ -56,16 +68,13 @@ class ExpirySmile:
 
         log_m = math.log(strike / self.forward)
 
-        # Find bracketing points
-        left_idx = 0
-        right_idx = len(self.points) - 1
-
-        for i, point in enumerate(self.points):
-            if point.log_moneyness <= log_m:
-                left_idx = i
-            if point.log_moneyness >= log_m:
-                right_idx = i
-                break
+        # Bracket: left = last point <= log_m, right = first point >= log_m.
+        keys = self._moneyness_keys()
+        n = len(keys)
+        i = bisect_right(keys, log_m)
+        left_idx = i - 1 if i > 0 else 0
+        j = bisect_left(keys, log_m)
+        right_idx = j if j < n else n - 1
 
         left = self.points[left_idx]
         right = self.points[right_idx]
@@ -101,6 +110,19 @@ class VolSurface:
     rate: float
     dividend_yield: float
     smiles: dict[str, ExpirySmile] = field(default_factory=dict)
+    # Memoized expiry -> year-fraction, so repeated IV/Greeks lookups don't
+    # re-parse the same ISO date strings on every call.
+    _tenor_cache: dict = field(default_factory=dict, repr=False, compare=False)
+
+    def year_fraction(self, expiry: str) -> float:
+        """Years from as_of to expiry (ACT/365), memoized."""
+        cached = self._tenor_cache.get(expiry)
+        if cached is None:
+            as_of_date = date.fromisoformat(self.as_of[:10])
+            exp_date = date.fromisoformat(expiry[:10])
+            cached = (exp_date - as_of_date).days / 365.0
+            self._tenor_cache[expiry] = cached
+        return cached
 
     def get_expiries(self) -> list[str]:
         """Get sorted list of expiry dates."""
@@ -153,15 +175,10 @@ class VolSurface:
         if left_iv is None or right_iv is None:
             return left_iv or right_iv
 
-        # Time to each expiry
-        as_of_date = date.fromisoformat(self.as_of[:10])
-        target_date = date.fromisoformat(expiry)
-        left_date = date.fromisoformat(left_exp)
-        right_date = date.fromisoformat(right_exp)
-
-        t_target = (target_date - as_of_date).days / 365.0
-        t_left = (left_date - as_of_date).days / 365.0
-        t_right = (right_date - as_of_date).days / 365.0
+        # Time to each expiry (memoized)
+        t_target = self.year_fraction(expiry)
+        t_left = self.year_fraction(left_exp)
+        t_right = self.year_fraction(right_exp)
 
         if t_right <= t_left:
             return left_iv
@@ -199,9 +216,7 @@ class VolSurface:
         if iv is None:
             return None
 
-        as_of_date = date.fromisoformat(self.as_of[:10])
-        exp_date = date.fromisoformat(expiry)
-        T = (exp_date - as_of_date).days / 365.0
+        T = self.year_fraction(expiry)
 
         if T <= 0:
             return None
@@ -233,9 +248,7 @@ class VolSurface:
         if iv is None:
             return None
 
-        as_of_date = date.fromisoformat(self.as_of[:10])
-        exp_date = date.fromisoformat(expiry)
-        T = (exp_date - as_of_date).days / 365.0
+        T = self.year_fraction(expiry)
 
         if T <= 0:
             return None
@@ -351,8 +364,11 @@ def build_surface(
             forward=forward,
         )
 
-        # Process each strike
-        strikes_processed: set[float] = set()
+        # Group qualifying quotes by strike. At an exactly-ATM strike both
+        # the call and the put survive the prefer_otm filter, so a strike can
+        # have two candidates; picking whichever appeared first in the chain
+        # made the smile depend on input ordering.
+        candidates: dict[float, list[OptionQuote]] = {}
 
         for opt in options:
             # Filter by spread
@@ -370,28 +386,36 @@ def build_surface(
                 if opt.option_type == OptionType.PUT and opt.strike > chain.spot.mid:
                     continue
 
-            # Skip if we already have this strike
-            if opt.strike in strikes_processed:
-                continue
+            candidates.setdefault(opt.strike, []).append(opt)
 
-            # Calculate IV
-            iv = iv_from_quote(opt, chain.spot.mid, rate, T, dividend_yield)
-            if iv is None:
-                continue
+        for strike in sorted(candidates):
+            # Deterministic preference: tightest quoted spread first (best
+            # information), calls before puts as a stable tiebreak. Falls
+            # through to the next candidate if one fails to solve.
+            ranked = sorted(
+                candidates[strike],
+                key=lambda o: (o.spread_pct, o.option_type != OptionType.CALL),
+            )
 
-            # Sanity check IV bounds
-            if iv < 0.01 or iv > 3.0:
-                continue
+            for opt in ranked:
+                # Calculate IV
+                iv = iv_from_quote(opt, chain.spot.mid, rate, T, dividend_yield)
+                if iv is None:
+                    continue
 
-            log_m = math.log(opt.strike / forward)
+                # Sanity check IV bounds
+                if iv < 0.01 or iv > 3.0:
+                    continue
 
-            smile.points.append(SmilePoint(
-                log_moneyness=log_m,
-                strike=opt.strike,
-                iv=iv,
-                option_type=opt.option_type,
-            ))
-            strikes_processed.add(opt.strike)
+                log_m = math.log(strike / forward)
+
+                smile.points.append(SmilePoint(
+                    log_moneyness=log_m,
+                    strike=strike,
+                    iv=iv,
+                    option_type=opt.option_type,
+                ))
+                break
 
         # Only add smile if we have enough points
         if len(smile.points) >= 2:
@@ -416,21 +440,24 @@ def validate_surface(surface: VolSurface) -> list[str]:
         return warnings
 
     for expiry, smile in surface.smiles.items():
-        # Check for negative slopes in smile (butterfly arbitrage)
-        for i in range(len(smile.points) - 2):
-            p1 = smile.points[i]
-            p2 = smile.points[i + 1]
-            p3 = smile.points[i + 2]
+        # Check for negative slopes in smile (butterfly arbitrage).
+        # Segment slopes are computed once and reused: each consecutive pair
+        # is both the right slope of one triple and the left slope of the
+        # next.
+        pts = smile.points
+        slopes = []
+        for i in range(len(pts) - 1):
+            dx = pts[i + 1].log_moneyness - pts[i].log_moneyness
+            slopes.append(
+                (pts[i + 1].iv - pts[i].iv) / dx if abs(dx) > 1e-10 else 0
+            )
 
-            # Check convexity
-            slope1 = (p2.iv - p1.iv) / (p2.log_moneyness - p1.log_moneyness) if abs(p2.log_moneyness - p1.log_moneyness) > 1e-10 else 0
-            slope2 = (p3.iv - p2.iv) / (p3.log_moneyness - p2.log_moneyness) if abs(p3.log_moneyness - p2.log_moneyness) > 1e-10 else 0
-
+        for i in range(len(slopes) - 1):
             # Typically smile should be convex
-            if slope2 < slope1 - 0.5:  # Allow some tolerance
+            if slopes[i + 1] < slopes[i] - 0.5:  # Allow some tolerance
                 warnings.append(
                     f"Possible non-convex smile at {expiry} "
-                    f"around strike {p2.strike:.2f}"
+                    f"around strike {pts[i + 1].strike:.2f}"
                 )
 
         # Check for very high or low IVs

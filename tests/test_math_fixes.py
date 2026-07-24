@@ -162,6 +162,122 @@ class TestIVSolverHonesty:
             newton_iv(price, S, K, T, r, OptionType.CALL, initial_guess=0.20)
 
 
+class TestSurfaceLookupAndDedup:
+    """Audit M10/M11: order-dependent smiles and O(n) lookups."""
+
+    def _smile(self, forward=100.0):
+        from derivatives_strategies.surface.builder import ExpirySmile, SmilePoint
+        pts = [
+            SmilePoint(math.log(k / forward), float(k),
+                       0.20 + 0.001 * abs(k - 100), OptionType.CALL)
+            for k in range(60, 161, 5)
+        ]
+        return ExpirySmile("2025-03-21", 60, forward, pts)
+
+    def _linear_reference(self, smile, strike):
+        """The original O(n) scan, kept as an oracle."""
+        if not smile.points:
+            return None
+        if len(smile.points) == 1:
+            return smile.points[0].iv
+        log_m = math.log(strike / smile.forward)
+        left_idx, right_idx = 0, len(smile.points) - 1
+        for i, p in enumerate(smile.points):
+            if p.log_moneyness <= log_m:
+                left_idx = i
+            if p.log_moneyness >= log_m:
+                right_idx = i
+                break
+        left, right = smile.points[left_idx], smile.points[right_idx]
+        if log_m <= left.log_moneyness:
+            return left.iv
+        if log_m >= right.log_moneyness:
+            return right.iv
+        if abs(right.log_moneyness - left.log_moneyness) < 1e-10:
+            return left.iv
+        w = ((log_m - left.log_moneyness)
+             / (right.log_moneyness - left.log_moneyness))
+        return left.iv + w * (right.iv - left.iv)
+
+    def test_bisect_lookup_matches_linear_scan(self):
+        smile = self._smile()
+        probes = [30.0, 59.9, 60.0, 62.5, 100.0, 137.5, 160.0, 160.1, 500.0]
+        probes += [float(k) for k in range(61, 160, 3)]
+        for strike in probes:
+            assert smile.get_iv(strike) == pytest.approx(
+                self._linear_reference(smile, strike), abs=1e-15
+            )
+
+    def test_lookup_cache_tracks_appended_points(self):
+        from derivatives_strategies.surface.builder import SmilePoint
+        smile = self._smile()
+        before = smile.get_iv(100.0)
+        assert before is not None
+        # Appending a point must invalidate the cached keys.
+        smile.points.append(
+            SmilePoint(math.log(200.0 / smile.forward), 200.0, 0.9, OptionType.CALL)
+        )
+        smile.points.sort(key=lambda p: p.log_moneyness)
+        assert smile.get_iv(200.0) == pytest.approx(0.9)
+
+    def test_smile_construction_is_order_independent(self):
+        # Previously an exactly-ATM strike (both call and put survive the
+        # prefer_otm filter) resolved to whichever appeared first in the chain.
+        from derivatives_strategies.surface.builder import build_surface
+        from derivatives_strategies.data.demo_provider import DemoProvider
+        from derivatives_strategies.data.models import Chain
+
+        provider = DemoProvider()
+        chain = provider.get_chain("AAPL")
+        expiry = chain.get_expiries()[1]
+        atm = round(chain.spot.mid, 2)
+        extra = [
+            OptionQuote("AAPL", expiry, atm, OptionType.CALL,
+                        3.00, 3.10, 3.05, 900, 5000, chain.as_of),
+            OptionQuote("AAPL", expiry, atm, OptionType.PUT,
+                        2.50, 2.80, 2.65, 900, 5000, chain.as_of),
+        ]
+        options = list(chain.options) + extra
+        forward = Chain("AAPL", chain.spot, options, chain.as_of)
+        reversed_chain = Chain("AAPL", chain.spot, list(reversed(options)), chain.as_of)
+
+        s1 = build_surface(forward, 0.0525, provider.get_as_of_date())
+        s2 = build_surface(reversed_chain, 0.0525, provider.get_as_of_date())
+
+        assert s1.get_expiries() == s2.get_expiries()
+        for exp in s1.get_expiries():
+            a = [(p.strike, p.iv, p.option_type) for p in s1.smiles[exp].points]
+            b = [(p.strike, p.iv, p.option_type) for p in s2.smiles[exp].points]
+            assert a == b
+        # Tightest spread wins the contested ATM strike (call: 0.10 vs 0.30).
+        atm_pts = [p for p in s1.smiles[expiry].points if abs(p.strike - atm) < 1e-9]
+        assert atm_pts and atm_pts[0].option_type == OptionType.CALL
+
+    def test_year_fraction_is_memoized_and_correct(self):
+        from derivatives_strategies.surface.builder import VolSurface
+        surface = VolSurface(symbol="AAPL", spot=100.0, as_of="2025-01-15",
+                             rate=0.05, dividend_yield=0.0)
+        # 2025-01-15 -> 2025-03-16 is 60 days
+        assert surface.year_fraction("2025-03-16") == pytest.approx(60 / 365.0)
+        assert surface.year_fraction("2025-03-16") == pytest.approx(60 / 365.0)
+        assert "2025-03-16" in surface._tenor_cache
+
+    def test_validate_surface_flags_non_convex_smile(self):
+        from derivatives_strategies.surface.builder import (
+            ExpirySmile, SmilePoint, VolSurface, validate_surface,
+        )
+        surface = VolSurface(symbol="X", spot=100.0, as_of="2025-01-15",
+                             rate=0.05, dividend_yield=0.0)
+        # Sharply concave: slope drops far more than the 0.5 tolerance.
+        pts = [
+            SmilePoint(-0.2, 80.0, 0.20, OptionType.PUT),
+            SmilePoint(0.0, 100.0, 0.60, OptionType.CALL),
+            SmilePoint(0.2, 120.0, 0.21, OptionType.CALL),
+        ]
+        surface.smiles["2025-03-21"] = ExpirySmile("2025-03-21", 65, 100.0, pts)
+        assert any("non-convex" in w for w in validate_surface(surface))
+
+
 class TestGreeksHygiene:
     def test_zero_rho_preserved_in_position_greeks(self):
         scaled = position_greeks(
