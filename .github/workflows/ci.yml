@@ -1,9 +1,17 @@
 name: CI
 
+# Validate PRs via the pull_request event and post-merge pushes to the
+# default branches. Feature-branch pushes are covered by their PR's
+# pull_request run, so we don't double-trigger (which previously raced two
+# identical runs and left a stray cancelled check).
 on:
   push:
-    branches: ["**"]
+    branches: [main, master]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
