@@ -232,7 +232,12 @@ def option_price(
     """
     S_adj = S
 
-    # Adjust spot for discrete dividends
+    # Adjust spot for discrete dividends.
+    # Convention: the window is strictly (0, T) — a dividend going ex exactly
+    # AT expiry does not reduce the option's value, because the option holder
+    # never receives it and the ex-drop happens at settlement. This matches
+    # american.binomial_tree_american. Note the resulting discontinuity is
+    # real: a dividend at T-epsilon is priced, one at T is not.
     if dividends:
         for t_div, amount in dividends:
             if 0 < t_div < T:
@@ -240,8 +245,14 @@ def option_price(
                 pv = amount * math.exp(-r * t_div)
                 S_adj -= pv
 
-    # Ensure adjusted spot is positive
-    S_adj = max(0.01, S_adj)
+    # Dividends worth as much as the stock are bad inputs, not a pricing
+    # case — silently clamping would return a near-zero-spot price with no
+    # signal that the inputs were impossible.
+    if S_adj <= 0:
+        raise ValueError(
+            f"PV of dividends ({S - S_adj:.4f}) >= spot ({S:.4f}); "
+            "check dividend inputs"
+        )
 
     return black_scholes_price(S_adj, K, T, r, sigma, option_type, q)
 

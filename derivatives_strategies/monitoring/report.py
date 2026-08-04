@@ -5,7 +5,7 @@ Creates human-readable markdown reports explaining recommendations
 and gate decisions.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from derivatives_strategies.data.models import (
     Recommendation,
@@ -76,7 +76,7 @@ class RiskReportGenerator:
 **Run ID:** `{self.run_id}`
 **As Of:** {self.as_of}
 **Policy:** {self.policy_name}
-**Generated:** {datetime.utcnow().isoformat()}Z"""
+**Generated:** {datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")}Z"""
 
     def _summary(
         self,
@@ -245,7 +245,7 @@ class RiskReportGenerator:
         if rec.economics:
             eco = rec.economics
             economics_info = f"""
-**Economics:**
+**Economics** (total $ for the action):
 | Metric | Value |
 |--------|-------|
 | Gross Premium | ${eco.gross_premium:.2f} |

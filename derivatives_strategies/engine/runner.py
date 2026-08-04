@@ -12,7 +12,7 @@ Orchestrates the full workflow:
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -46,7 +46,12 @@ class EngineConfig:
     use_demo_provider: bool = True
     portfolio_value: float = 100000.0
     margin_used: float = 0.0
-    margin_available: float = 50000.0
+    # None means "no margin data" — MarginGate skips rather than guessing.
+    margin_available: Optional[float] = None
+    # Valuation date for CSV data (YYYY-MM-DD). None lets the provider
+    # default (demo: its own date; CSV: today — pass explicitly for
+    # historical data).
+    as_of: Optional[str] = None
 
 
 @dataclass
@@ -89,7 +94,7 @@ class Engine:
         """
         self.config = config
         self.run_id = str(uuid.uuid4())
-        self.timestamp = datetime.utcnow().isoformat() + 'Z'
+        self.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         # Initialize output directory
         self.output_dir = Path(config.output_dir)
@@ -101,11 +106,12 @@ class Engine:
         else:
             self.policy = create_default_policy()
 
-        # Initialize data provider
-        if config.use_demo_provider or not config.data_dir:
-            self.provider = DemoProvider()
+        # Initialize data provider. An explicit data_dir selects the CSV
+        # provider unless demo mode was explicitly forced.
+        if config.data_dir and not config.use_demo_provider:
+            self.provider = CSVProvider(config.data_dir, as_of_date=config.as_of)
         else:
-            self.provider = CSVProvider(config.data_dir)
+            self.provider = DemoProvider()
 
         # Initialize ledger
         self.ledger = Ledger(str(self.output_dir / "ledger.jsonl"))
@@ -204,13 +210,13 @@ class Engine:
         Returns:
             RunResult with all outputs
         """
-        # Log run start
+        # Log run start (symbols sorted for deterministic hashing)
         log_run_start(
             self.ledger,
             self.run_id,
             self.policy.policy_hash(),
             len(self.positions),
-            list(set(p.symbol for p in self.positions)),
+            sorted(set(p.symbol for p in self.positions)),
         )
 
         # Initialize recommendation engine
@@ -220,6 +226,13 @@ class Engine:
             run_id=self.run_id,
         )
 
+        # Long stock held per symbol, so covered calls net down their margin
+        # requirement against the shares that cover them.
+        stock_by_symbol: dict[str, int] = {}
+        for p in self.positions:
+            if p.position_type == "stock" and p.quantity > 0:
+                stock_by_symbol[p.symbol] = stock_by_symbol.get(p.symbol, 0) + p.quantity
+
         # Generate recommendations for each position
         recommendations = []
         for position in self.positions:
@@ -228,6 +241,7 @@ class Engine:
                 portfolio_value=self.config.portfolio_value,
                 margin_used=self.config.margin_used,
                 margin_available=self.config.margin_available,
+                covered_shares=stock_by_symbol.get(position.symbol, 0),
             )
             recommendations.append(rec)
 
@@ -276,10 +290,24 @@ class Engine:
         orders: list[OrderIntent],
     ) -> None:
         """Write all output files."""
-        # run.json - Summary
+        # run.json - Summary with full reproducibility metadata
+        import derivatives_strategies  # deferred: __init__ imports this module
         run_data = {
             "run_id": self.run_id,
             "timestamp": self.timestamp,
+            "engine_version": derivatives_strategies.__version__,
+            "as_of": self.provider.get_as_of_date(),
+            "provider": type(self.provider).__name__,
+            "inputs": {
+                "policy_path": self.config.policy_path,
+                "positions_path": self.config.positions_path,
+                "data_dir": self.config.data_dir,
+            },
+            "portfolio": {
+                "portfolio_value": self.config.portfolio_value,
+                "margin_used": self.config.margin_used,
+                "margin_available": self.config.margin_available,
+            },
             "policy": {
                 "name": self.policy.name,
                 "version": self.policy.version,
@@ -289,6 +317,12 @@ class Engine:
             "recommendations_count": len(recommendations),
             "approved_count": len([r for r in recommendations if r.approved]),
             "blocked_count": len([r for r in recommendations if r.blocked_by]),
+            # Anchor for the hash-chained ledger: recording the head here
+            # makes whole-file ledger replacement detectable.
+            "ledger_anchor": {
+                "entries": self.ledger.get_entry_count(),
+                "head_hash": self.ledger.head_hash,
+            },
         }
         with open(self.output_dir / "run.json", 'w') as f:
             json.dump(run_data, f, indent=2)
@@ -349,15 +383,32 @@ def run_cli():
     )
     run_parser.add_argument(
         '--demo',
-        help='Use demo provider',
+        help='Force the demo provider even when --data is given',
         action='store_true',
-        default=True,
+        default=False,
+    )
+    run_parser.add_argument(
+        '--as-of',
+        help='Valuation date for CSV data (YYYY-MM-DD); defaults to today',
+        default=None,
     )
     run_parser.add_argument(
         '--portfolio-value',
         help='Total portfolio value',
         type=float,
         default=100000.0,
+    )
+    run_parser.add_argument(
+        '--margin-used',
+        help='Current margin used (dollars)',
+        type=float,
+        default=0.0,
+    )
+    run_parser.add_argument(
+        '--margin-available',
+        help='Available margin (dollars); omit to skip margin checks',
+        type=float,
+        default=None,
     )
 
     args = parser.parse_args()
@@ -370,6 +421,9 @@ def run_cli():
             output_dir=args.out,
             use_demo_provider=args.demo or not args.data,
             portfolio_value=args.portfolio_value,
+            margin_used=args.margin_used,
+            margin_available=args.margin_available,
+            as_of=args.as_of,
         )
 
         engine = Engine(config)

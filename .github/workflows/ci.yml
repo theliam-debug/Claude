@@ -1,0 +1,44 @@
+name: CI
+
+# Validate PRs via the pull_request event and post-merge pushes to the
+# default branches. Feature-branch pushes are covered by their PR's
+# pull_request run, so we don't double-trigger (which previously raced two
+# identical runs and left a stray cancelled check).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+      - name: Demo runs stay healthy
+        run: |
+          python -m derivatives_strategies run --out /tmp/ds_out
+          python -m derivatives_strategies run \
+            --data examples/data \
+            --policy examples/policy.example.yml \
+            --positions examples/positions.example.json \
+            --as-of 2025-01-15 \
+            --out /tmp/ds_csv_out
+          python -m lsto_workforce demo --out /tmp/wf_out
+          python -m lsto_workforce verify-ledger /tmp/wf_out/workforce_ledger.jsonl

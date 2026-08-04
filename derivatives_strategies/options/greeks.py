@@ -127,14 +127,17 @@ def theta(
     # First term: time decay from volatility
     term1 = -S * math.exp(-q * T) * norm_pdf(d1_val) * sigma / (2 * math.sqrt(T))
 
+    # Black-Scholes theta with continuous dividend yield q:
+    #   call: term1 + q*S*e^(-qT)*N(d1)  - r*K*e^(-rT)*N(d2)
+    #   put:  term1 - q*S*e^(-qT)*N(-d1) + r*K*e^(-rT)*N(-d2)
     if option_type == OptionType.CALL:
         term2 = q * S * math.exp(-q * T) * norm_cdf(d1_val)
         term3 = -r * K * math.exp(-r * T) * norm_cdf(d2_val)
-        theta_annual = term1 - term2 + term3
+        theta_annual = term1 + term2 + term3
     else:
         term2 = -q * S * math.exp(-q * T) * norm_cdf(-d1_val)
         term3 = r * K * math.exp(-r * T) * norm_cdf(-d2_val)
-        theta_annual = term1 - term2 + term3
+        theta_annual = term1 + term2 + term3
 
     # Convert to per-day
     return theta_annual / 365.0
@@ -272,7 +275,7 @@ def position_greeks(
         gamma=greeks.gamma * scale,
         theta=greeks.theta * scale,
         vega=greeks.vega * scale,
-        rho=greeks.rho * scale if greeks.rho else None,
+        rho=greeks.rho * scale if greeks.rho is not None else None,
     )
 
 

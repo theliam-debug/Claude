@@ -32,8 +32,21 @@ class GateContext:
     dividends: list[DividendEvent] = None
     portfolio_value: float = 0.0
     margin_used: float = 0.0
-    margin_available: float = 0.0
+    # None means "no margin data" (gate skips); 0.0 means margin exhausted.
+    margin_available: Optional[float] = None
     event_calendar: dict[str, list[str]] = None  # date -> list of events
+    # Net credit of the proposed roll in total dollars (None if not a roll);
+    # populated by the recommendation engine before gate evaluation.
+    net_credit: Optional[float] = None
+    # Computed delta for the target option, for when the quote carries none.
+    target_delta: Optional[float] = None
+    # Proposed action ("hold", "close", "roll", "open") — lets gates
+    # distinguish adding exposure from managing existing exposure.
+    proposed_action: Optional[str] = None
+    # Initial margin (total dollars) the proposed trade would require, net of
+    # stock coverage. None means the engine did not compute it (MarginGate
+    # then evaluates only the supplied aggregate figures).
+    trade_margin_requirement: Optional[float] = None
 
     def __post_init__(self):
         if self.dividends is None:
@@ -211,6 +224,32 @@ class EventGate(Gate):
         self.blackout_after = blackout_days_after
         self.event_types = event_types
 
+    # Macro events that apply to every symbol even though their first token
+    # looks ticker-like.
+    GLOBAL_EVENT_TERMS = {
+        "FOMC", "FED", "CPI", "PPI", "NFP", "GDP", "OPEX",
+        "ECB", "BOE", "BOJ", "PCE", "ISM",
+    }
+
+    def _event_applies(self, symbol: str, event: str) -> bool:
+        """
+        Decide whether an event applies to the symbol being evaluated.
+
+        Events naming the symbol apply. Events whose first token looks like
+        a different ticker (1-5 uppercase letters, not a known macro term)
+        apply only to that ticker. Everything else is treated as global.
+        """
+        tokens = event.split()
+        symbol_upper = symbol.upper()
+        if any(t.upper() == symbol_upper for t in tokens):
+            return True
+        if tokens:
+            first = tokens[0]
+            if (first.isalpha() and first.isupper() and len(first) <= 5
+                    and first not in self.GLOBAL_EVENT_TERMS):
+                return False  # Specific to another symbol
+        return True
+
     def evaluate(self, context: GateContext) -> GateResult:
         if not context.event_calendar:
             return self._make_result(
@@ -235,6 +274,12 @@ class EventGate(Gate):
                     events = [e for e in events if any(
                         et.lower() in e.lower() for et in self.event_types
                     )]
+
+                # Only events relevant to this symbol (or global events) block
+                events = [
+                    e for e in events
+                    if self._event_applies(context.symbol, e)
+                ]
 
                 if events:
                     return self._make_result(
@@ -347,15 +392,22 @@ class DividendGate(Gate):
                 actual=result.extrinsic / result.dividend_pv if result.dividend_pv > 0 else 0,
             )
 
-        # Check if we're within the warning window
+        # Check if we're within the warning window. Not technically at risk,
+        # so this is always a WARN — never a block — regardless of the
+        # gate's hard flag (blocking here would stop the very roll/close
+        # that removes the risk).
         days_to_ex = result.days_to_ex
         if days_to_ex <= self.days_before_ex and result.intrinsic > 0:
-            # Soft warning even if not technically at risk
-            if result.extrinsic / result.dividend_pv < self.min_extrinsic_ratio:
-                return self._make_result(
-                    False,
-                    f"Caution: ITM call with dividend in {days_to_ex} days",
+            if (result.dividend_pv > 0 and
+                    result.extrinsic / result.dividend_pv < self.min_extrinsic_ratio):
+                return GateResult(
+                    gate_name=self.name,
+                    status=GateStatus.WARN,
+                    message=f"Caution: ITM call with dividend in {days_to_ex} days",
                     details=details,
+                    threshold=self.min_extrinsic_ratio,
+                    actual_value=result.extrinsic / result.dividend_pv,
+                    override_allowed=self.override_allowed,
                 )
 
         return self._make_result(
@@ -390,24 +442,47 @@ class MarginGate(Gate):
         self.max_utilization = max_margin_utilization
 
     def evaluate(self, context: GateContext) -> GateResult:
-        if context.margin_available <= 0:
+        if context.margin_available is None:
             return self._make_result(
-                True, "Margin check skipped (no margin data)"
+                True, "Margin check skipped (no margin data)",
+                details={"skipped": True},
             )
 
-        # Calculate utilization
+        # Exhausted margin is the opposite of "no data": block outright.
+        if context.margin_available <= 0 and context.margin_used > 0:
+            return self._make_result(
+                False,
+                "Margin exhausted: no available margin remaining",
+                details={
+                    "margin_used": context.margin_used,
+                    "margin_available": context.margin_available,
+                    "utilization": 1.0,
+                },
+                threshold=self.max_utilization,
+                actual=1.0,
+            )
+
+        # Calculate utilization. If the engine supplied the proposed trade's
+        # margin requirement, evaluate the POST-TRADE state: the requirement
+        # moves from available into used, so the gate answers "can this book
+        # absorb the trade?" rather than only "is the book healthy now?".
         total_margin = context.margin_used + context.margin_available
         if total_margin <= 0:
             return self._make_result(
-                True, "Margin check skipped (no margin data)"
+                True, "Margin check skipped (no margin data)",
+                details={"skipped": True},
             )
 
-        utilization = context.margin_used / total_margin
-        buffer = context.margin_available / total_margin
+        trade_req = context.trade_margin_requirement or 0.0
+        effective_used = context.margin_used + trade_req
+        effective_available = context.margin_available - trade_req
+        utilization = effective_used / total_margin
+        buffer = effective_available / total_margin
 
         details = {
             "margin_used": context.margin_used,
             "margin_available": context.margin_available,
+            "trade_margin_requirement": trade_req,
             "utilization": utilization,
             "buffer": buffer,
         }
@@ -465,15 +540,15 @@ class RollCreditGate(Gate):
         self.max_debit = max_debit
 
     def evaluate(self, context: GateContext) -> GateResult:
-        # This gate needs net credit info passed in context
-        # For now, return pass if no target quote
-        if context.target_quote is None:
+        # The recommendation engine populates context.net_credit (total
+        # dollars, costs included) when the proposed action is a roll.
+        if context.net_credit is None:
             return self._make_result(
-                True, "No roll to evaluate"
+                True, "No roll economics to evaluate (not a roll)",
+                details={"skipped": True},
             )
 
-        # Net credit should be computed by caller and passed in config
-        net_credit = context.chain.spot.mid if context.chain else 0  # Placeholder
+        net_credit = context.net_credit
 
         details = {
             "net_credit": net_credit,
@@ -540,32 +615,54 @@ class ConcentrationGate(Gate):
                 True, "No position to evaluate"
             )
 
-        # Notional = spot * 100 (assuming 1 contract)
-        notional = context.spot * 100
+        # Notional exposure of the position being evaluated: spot x 100
+        # shares per contract x number of contracts.
+        contracts = abs(context.position.quantity) if context.position else 1
+        notional = context.spot * 100 * contracts
         concentration = notional / context.portfolio_value
+
+        # Rolling or closing an existing position does not add exposure to
+        # the underlying — blocking those actions would prevent managing a
+        # position that is already concentrated. Only exposure-adding
+        # actions (open) block; maintenance actions downgrade to WARN.
+        adds_exposure = context.proposed_action in (None, "open")
 
         details = {
             "notional": notional,
+            "contracts": contracts,
             "portfolio_value": context.portfolio_value,
             "concentration": concentration,
+            "proposed_action": context.proposed_action,
         }
 
+        breached = None
         if concentration > self.max_pct:
-            return self._make_result(
-                False,
-                f"Position concentration ({concentration:.1%}) exceeds max ({self.max_pct:.1%})",
-                details=details,
-                threshold=self.max_pct,
-                actual=concentration,
+            breached = (
+                f"Position concentration ({concentration:.1%}) exceeds "
+                f"max ({self.max_pct:.1%})"
             )
+            threshold, actual = self.max_pct, concentration
+        elif self.max_notional and notional > self.max_notional:
+            breached = (
+                f"Notional (${notional:,.0f}) exceeds max (${self.max_notional:,.0f})"
+            )
+            threshold, actual = self.max_notional, notional
 
-        if self.max_notional and notional > self.max_notional:
-            return self._make_result(
-                False,
-                f"Notional (${notional:,.0f}) exceeds max (${self.max_notional:,.0f})",
+        if breached:
+            if adds_exposure:
+                return self._make_result(
+                    False, breached, details=details,
+                    threshold=threshold, actual=actual,
+                )
+            return GateResult(
+                gate_name=self.name,
+                status=GateStatus.WARN,
+                message=f"{breached} — existing position; "
+                        f"{context.proposed_action} does not add exposure",
                 details=details,
-                threshold=self.max_notional,
-                actual=notional,
+                threshold=threshold,
+                actual_value=actual,
+                override_allowed=self.override_allowed,
             )
 
         return self._make_result(
@@ -585,7 +682,7 @@ class DTEGate(Gate):
     def __init__(
         self,
         min_dte: int = 7,
-        max_dte: int = 60,
+        max_dte: int = 45,
         hard: bool = False  # Usually soft warning
     ):
         super().__init__(
@@ -652,7 +749,7 @@ class DeltaGate(Gate):
     def __init__(
         self,
         min_delta: float = 0.15,
-        max_delta: float = 0.40,
+        max_delta: float = 0.35,
         hard: bool = False
     ):
         super().__init__(
@@ -673,13 +770,13 @@ class DeltaGate(Gate):
                 True, "No option to evaluate"
             )
 
-        # Use quote delta if available, otherwise compute
-        delta = quote.delta
+        # Use the quote's delta, falling back to the engine-computed delta
+        # supplied via context (demo/CSV quotes often carry no greeks).
+        delta = quote.delta if quote.delta is not None else context.target_delta
         if delta is None:
-            # Need to compute - requires IV and other params
             return self._make_result(
                 True, "Delta not available; skipping check",
-                details={"warning": "Delta not computed"}
+                details={"skipped": True, "warning": "Delta not computed"}
             )
 
         abs_delta = abs(delta)

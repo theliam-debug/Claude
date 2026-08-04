@@ -66,16 +66,57 @@ class Policy:
     max_roll_debit: float = 0.50
 
     def policy_hash(self) -> str:
-        """Generate hash of policy for audit trail."""
+        """
+        Hash of the full effective policy for the audit trail: gate
+        thresholds and hard/soft flags, defaults, limits, strategy
+        parameters, and overrides — loosening any threshold changes
+        the hash.
+        """
         data = {
             "name": self.name,
             "version": self.version,
-            "gates": [g.name for g in self.gates],
-            "overrides": [o.gate_name for o in self.overrides],
+            "gates": [
+                {
+                    "name": g.name,
+                    "hard": g.hard,
+                    "override_allowed": g.override_allowed,
+                    "config": g.config,
+                }
+                for g in self.gates
+            ],
+            "overrides": [
+                {
+                    "gate": o.gate_name,
+                    "reason": o.reason_code,
+                    "authorized_by": o.authorized_by,
+                    "expires": o.expires,
+                }
+                for o in self.overrides
+            ],
+            "event_calendar": self.event_calendar,
+            "defaults": {
+                "dte_min": self.default_dte_min,
+                "dte_max": self.default_dte_max,
+                "delta_min": self.default_delta_min,
+                "delta_max": self.default_delta_max,
+            },
+            "costs": {
+                "commission": self.cost_commission,
+                "price_improvement": self.cost_price_improvement,
+            },
+            "limits": {
+                "concentration": self.max_position_concentration,
+                "margin_utilization": self.max_margin_utilization,
+            },
+            "strategy": {
+                "prefer_roll_credit": self.prefer_roll_credit,
+                "allow_roll_debit": self.allow_roll_debit,
+                "max_roll_debit": self.max_roll_debit,
+            },
         }
         return hashlib.sha256(
-            json.dumps(data, sort_keys=True).encode()
-        ).hexdigest()[:16]
+            json.dumps(data, sort_keys=True, default=str).encode()
+        ).hexdigest()
 
 
 class PolicyEngine:
@@ -107,8 +148,11 @@ class PolicyEngine:
         Returns:
             List of gate results
         """
-        # Add event calendar to context
-        context.event_calendar = self.policy.event_calendar
+        # Merge policy calendar into context (policy entries win on clashes,
+        # but caller-supplied events are preserved).
+        merged_calendar = dict(context.event_calendar or {})
+        merged_calendar.update(self.policy.event_calendar)
+        context.event_calendar = merged_calendar
 
         results = []
         for gate in self.policy.gates:
@@ -117,7 +161,7 @@ class PolicyEngine:
             # Check for override
             if result.status != GateStatus.PASS:
                 override = self._override_map.get(gate.name)
-                if override:
+                if override and self._override_applies(override, result, context):
                     # Apply override
                     result = GateResult(
                         gate_name=result.gate_name,
@@ -133,6 +177,22 @@ class PolicyEngine:
             results.append(result)
 
         return results
+
+    @staticmethod
+    def _override_applies(
+        override: PolicyOverride,
+        result: GateResult,
+        context: GateContext,
+    ) -> bool:
+        """An override applies only if the gate allows it and it hasn't expired."""
+        if not result.override_allowed:
+            return False
+        if override.expires:
+            # Compare on the date portion of ISO strings; expired means
+            # strictly before the evaluation date.
+            if override.expires[:10] < context.as_of[:10]:
+                return False
+        return True
 
     def is_blocked(self, results: list[GateResult]) -> bool:
         """Check if any gate blocks the action."""
@@ -157,113 +217,39 @@ def load_policy(path: str) -> Policy:
     Returns:
         Policy object
     """
-    # Use simple YAML parsing (avoid external dependency)
+    import yaml
+
     policy_path = Path(path)
     if not policy_path.exists():
         raise FileNotFoundError(f"Policy file not found: {path}")
 
-    content = policy_path.read_text()
+    with open(policy_path, 'r') as f:
+        config = yaml.safe_load(f)
 
-    # Simple YAML parser for our structured format
-    config = _parse_simple_yaml(content)
+    if config is None:
+        config = {}
+    if not isinstance(config, dict):
+        raise ValueError(
+            f"Policy file must contain a YAML mapping at the top level: {path}"
+        )
 
     return _build_policy_from_config(config)
-
-
-def _parse_simple_yaml(content: str) -> dict:
-    """
-    Parse a simple YAML file.
-
-    Supports basic key: value pairs and nested structures.
-    Limited parser to avoid external dependencies.
-    """
-    result: dict = {}
-    current_section = result
-    section_stack = [(0, result)]
-    current_key = None
-    list_key = None
-
-    for line in content.split('\n'):
-        # Skip comments and empty lines
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        # Calculate indent level
-        indent = len(line) - len(line.lstrip())
-
-        # Pop sections if we've dedented
-        while section_stack and indent <= section_stack[-1][0] and len(section_stack) > 1:
-            section_stack.pop()
-
-        current_section = section_stack[-1][1]
-
-        # Handle list items
-        if stripped.startswith('- '):
-            item = stripped[2:].strip()
-            if list_key and list_key in current_section:
-                if ':' in item:
-                    # Nested dict in list
-                    key, val = item.split(':', 1)
-                    item_dict = {key.strip(): _parse_value(val.strip())}
-                    current_section[list_key].append(item_dict)
-                else:
-                    current_section[list_key].append(_parse_value(item))
-            continue
-
-        # Handle key: value pairs
-        if ':' in stripped:
-            key, _, value = stripped.partition(':')
-            key = key.strip()
-            value = value.strip()
-
-            if value:
-                # Simple value
-                current_section[key] = _parse_value(value)
-                list_key = None
-            else:
-                # Start of section or list
-                if key not in current_section:
-                    current_section[key] = {}
-                section_stack.append((indent, current_section[key]))
-                list_key = key
-                # Check if it's a list (next line starts with -)
-                if isinstance(current_section[key], dict) and not current_section[key]:
-                    current_section[key] = []
-
-    return result
-
-
-def _parse_value(value: str) -> Any:
-    """Parse a YAML value."""
-    # Remove quotes
-    if (value.startswith('"') and value.endswith('"')) or \
-       (value.startswith("'") and value.endswith("'")):
-        return value[1:-1]
-
-    # Boolean
-    if value.lower() == 'true':
-        return True
-    if value.lower() == 'false':
-        return False
-
-    # Number
-    try:
-        if '.' in value:
-            return float(value)
-        return int(value)
-    except ValueError:
-        pass
-
-    return value
 
 
 def _build_policy_from_config(config: dict) -> Policy:
     """Build Policy object from parsed config."""
     gates = []
 
-    # Build gates from config
-    gates_config = config.get('gates', {})
+    # Build gates from config. Empty YAML sections parse as None; treat
+    # them the same as absent sections with all-default values.
+    gates_config = config.get('gates') or {}
+    for key in list(gates_config):
+        if gates_config[key] is None:
+            gates_config[key] = {}
+    defaults = config.get('defaults') or {}
+    costs = config.get('costs') or {}
+    limits = config.get('limits') or {}
+    strategy = config.get('strategy') or {}
 
     # Liquidity gate
     if 'liquidity' in gates_config:
@@ -339,45 +325,49 @@ def _build_policy_from_config(config: dict) -> Policy:
             hard=delta.get('hard', False),
         ))
 
-    # Parse event calendar
+    # Parse event calendar. PyYAML parses unquoted dates as datetime.date;
+    # normalize keys to ISO strings.
     event_calendar = {}
-    if 'event_calendar' in config:
-        for date_str, events in config['event_calendar'].items():
-            if isinstance(events, list):
-                event_calendar[str(date_str)] = events
-            else:
-                event_calendar[str(date_str)] = [str(events)]
+    for date_key, events in (config.get('event_calendar') or {}).items():
+        date_str = (
+            date_key.isoformat() if hasattr(date_key, 'isoformat')
+            else str(date_key)
+        )
+        if isinstance(events, list):
+            event_calendar[date_str] = [str(e) for e in events]
+        else:
+            event_calendar[date_str] = [str(events)]
 
     # Parse overrides
     overrides = []
-    if 'overrides' in config:
-        for ov in config['overrides']:
-            if isinstance(ov, dict):
-                overrides.append(PolicyOverride(
-                    gate_name=ov.get('gate', ''),
-                    reason_code=ov.get('reason', ''),
-                    authorized_by=ov.get('authorized_by', 'system'),
-                    timestamp=ov.get('timestamp', ''),
-                ))
+    for ov in (config.get('overrides') or []):
+        if isinstance(ov, dict):
+            overrides.append(PolicyOverride(
+                gate_name=ov.get('gate', ''),
+                reason_code=ov.get('reason', ''),
+                authorized_by=ov.get('authorized_by', 'system'),
+                timestamp=str(ov.get('timestamp', '')),
+                expires=str(ov['expires']) if ov.get('expires') else None,
+            ))
 
     return Policy(
         name=config.get('name', 'default'),
-        version=config.get('version', '1.0'),
+        version=str(config.get('version', '1.0')),
         description=config.get('description', ''),
         gates=gates,
         overrides=overrides,
         event_calendar=event_calendar,
-        default_dte_min=config.get('defaults', {}).get('dte_min', 7),
-        default_dte_max=config.get('defaults', {}).get('dte_max', 45),
-        default_delta_min=config.get('defaults', {}).get('delta_min', 0.15),
-        default_delta_max=config.get('defaults', {}).get('delta_max', 0.35),
-        cost_commission=config.get('costs', {}).get('commission', 0.65),
-        cost_price_improvement=config.get('costs', {}).get('price_improvement', 0.10),
-        max_position_concentration=config.get('limits', {}).get('concentration', 0.10),
-        max_margin_utilization=config.get('limits', {}).get('margin_utilization', 0.80),
-        prefer_roll_credit=config.get('strategy', {}).get('prefer_roll_credit', True),
-        allow_roll_debit=config.get('strategy', {}).get('allow_roll_debit', False),
-        max_roll_debit=config.get('strategy', {}).get('max_roll_debit', 0.50),
+        default_dte_min=defaults.get('dte_min', 7),
+        default_dte_max=defaults.get('dte_max', 45),
+        default_delta_min=defaults.get('delta_min', 0.15),
+        default_delta_max=defaults.get('delta_max', 0.35),
+        cost_commission=costs.get('commission', 0.65),
+        cost_price_improvement=costs.get('price_improvement', 0.10),
+        max_position_concentration=limits.get('concentration', 0.10),
+        max_margin_utilization=limits.get('margin_utilization', 0.80),
+        prefer_roll_credit=strategy.get('prefer_roll_credit', True),
+        allow_roll_debit=strategy.get('allow_roll_debit', False),
+        max_roll_debit=strategy.get('max_roll_debit', 0.50),
     )
 
 
