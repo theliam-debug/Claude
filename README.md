@@ -12,6 +12,9 @@ trail:
 Governance standard: [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) ·
 Standing gap analysis: [`docs/WORKFORCE_AUDIT.md`](docs/WORKFORCE_AUDIT.md)
 
+Investment research standard: [`docs/RESEARCH_PLAYBOOK.md`](docs/RESEARCH_PLAYBOOK.md) ·
+Practice retrospective: [`docs/RESEARCH_REVIEW.md`](docs/RESEARCH_REVIEW.md)
+
 ```bash
 pip install -e ".[dev]"
 python -m pytest tests/ -q
